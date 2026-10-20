@@ -4,7 +4,6 @@ from __future__ import annotations
 import csv
 import io
 from collections import defaultdict
-from datetime import timedelta
 from decimal import Decimal
 
 from sqlalchemy import select

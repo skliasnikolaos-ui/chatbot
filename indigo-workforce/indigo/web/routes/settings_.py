@@ -1,10 +1,8 @@
 import json
-from datetime import date
 
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 
-from ...holidays import greek_holidays
 from ...models import ROLES, AuditLog, Holiday, PayrollRuleSet, Qualification, User
 from ...payroll_engine import DEFAULT_RULES, RULE_LABELS
 from ...security import hash_password, revoke_all_for_user

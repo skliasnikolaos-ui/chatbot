@@ -6,7 +6,6 @@ from datetime import date, timedelta
 import pytest
 from sqlalchemy import select
 
-from indigo.engine import rules
 from indigo.engine.types import Weights
 from indigo.models import Absence, Assignment, AuditLog, Employee, ScheduleVersion
 from indigo.services import attendance as att

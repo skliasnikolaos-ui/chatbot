@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Request, UploadFile
 from sqlalchemy import select
@@ -110,7 +110,7 @@ def site_detail(sid: int, request: Request, ctx: Ctx = Depends(need("sites.read"
     contracts = list(db.scalars(select(Contract).where(Contract.client_id == site.client_id)))
     # preview of the shifts each requirement produces in the coming week
     today = datetime.now(ATHENS).date()
-    from datetime import timedelta
+
     specs = [r for r in sch.requirement_specs(db, ctx.cid) if r.site_id == site.id]
     preview = demand.expand(specs, today, today + timedelta(days=6), sch.holidays_set(db, ctx.cid, today, today + timedelta(days=8)))
     return render(request, ctx, "site_detail.html", site=site, reqs=reqs, quals=quals, contracts=contracts,

@@ -4,7 +4,6 @@ Every solver result is re-checked with the independent rules validator.
 """
 from datetime import date, time, timedelta
 
-import pytest
 
 from indigo.engine import demand, rules, solver
 from indigo.engine.types import EmployeeSpec, FixedWork, Problem, RequirementSpec, SiteSpec, Weights

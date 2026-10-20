@@ -2,7 +2,6 @@
 company data isolation, CSRF, every screen rendering, and the critical
 end-to-end workflow through the real routes."""
 import re
-from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
