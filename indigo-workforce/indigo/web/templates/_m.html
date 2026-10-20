@@ -1,0 +1,10 @@
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ ctx.session.csrf_token }}">{% endmacro %}
+{% macro month_nav(path, y, m, extra="") %}
+{% set py, pm = (y, m - 1) if m > 1 else (y - 1, 12) %}{% set ny, nm = (y, m + 1) if m < 12 else (y + 1, 1) %}
+<div class="monthnav"><a href="{{ path }}?year={{ py }}&month={{ pm }}{{ extra }}">‹</a>
+<strong>{{ MONTHS[m] }} {{ y }}</strong><a href="{{ path }}?year={{ ny }}&month={{ nm }}{{ extra }}">›</a></div>
+{% endmacro %}
+{% macro estimate_banner() %}<div class="banner warn"><strong>ΕΚΤΙΜΗΣΗ.</strong> Οι υπολογισμοί μισθοδοσίας/κόστους βασίζονται σε
+παραμετρικούς κανόνες που <strong>δεν έχουν επαληθευτεί νομικά</strong>. Απαιτείται έλεγχος λογιστή. Δεν αποτελεί επίσημη
+μισθοδοσία, υποβολή σε ΕΡΓΑΝΗ ή άλλη αρχή.</div>{% endmacro %}
+{% macro weekday_boxes(name, selected) %}{% for wd in WEEKDAYS %}<label class="inline"><input type="checkbox" name="{{ name }}" value="{{ loop.index0 }}" {% if loop.index0 in selected %}checked{% endif %}>{{ wd }}</label>{% endfor %}{% endmacro %}

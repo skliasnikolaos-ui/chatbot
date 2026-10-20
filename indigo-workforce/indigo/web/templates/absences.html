@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}Απουσίες{% endblock %}
+{% block content %}
+<h1>Άδειες, ασθένειες & απουσίες</h1>
+{% if ctx.can('absences.write') %}<form method="post" action="/absences" class="card row">{{ ui.csrf() }}
+<label>Εργαζόμενος<select name="employee_id" required>{% for e in emps %}<option value="{{ e.id }}">{{ e.full_name }} ({{ e.code }})</option>{% endfor %}</select></label>
+<label>Τύπος<select name="kind">{% for k, v in ABSENCE_KINDS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+<label>Από<input type="date" name="start_date" required></label><label>Έως<input type="date" name="end_date" required></label>
+<label>Κατάσταση<select name="status"><option value="approved">Εγκεκριμένη</option><option value="requested">Αίτημα</option></select></label>
+<label>Σημειώσεις<input name="notes"></label><button>Καταχώριση</button></form>
+<p class="small muted">Μόνο οι εγκεκριμένες απουσίες λειτουργούν ως σκληρός περιορισμός. Αν επηρεάζουν δημοσιευμένο πρόγραμμα, προτείνονται αντικαταστάτες.</p>{% endif %}
+<p>Φίλτρο: <a href="/absences">όλες</a>{% for k, v in ABSENCE_STATUS.items() %} · <a href="/absences?status={{ k }}">{{ v }}</a>{% endfor %}</p>
+<table><tr><th>Εργαζόμενος</th><th>Τύπος</th><th>Από</th><th>Έως</th><th>Κατάσταση</th><th>Επηρεαζόμενες βάρδιες</th><th></th></tr>
+{% for a in rows %}<tr><td>{{ a.employee.full_name }}</td><td>{{ ABSENCE_KINDS[a.kind] }}</td><td>{{ a.start_date|dmy }}</td><td>{{ a.end_date|dmy }}</td><td>{{ ABSENCE_STATUS[a.status] }}</td>
+<td>{% if affected.get(a.id) %}<a href="/absences/{{ a.id }}" class="bad">{{ affected[a.id] }} → αντικατάσταση</a>{% else %}0{% endif %}</td>
+<td>{% if ctx.can('absences.write') %}<form method="post" action="/absences/{{ a.id }}/status" class="inline">{{ ui.csrf() }}<select name="status">{% for k, v in ABSENCE_STATUS.items() %}<option value="{{ k }}" {% if a.status == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select><button class="secondary">OK</button></form>{% endif %}</td></tr>{% endfor %}</table>
+{% endblock %}

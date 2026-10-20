@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}Αναφορές{% endblock %}
+{% block content %}
+<h1>Αναφορές & εξαγωγές</h1>{{ ui.month_nav('/reports', y, m) }}
+<div class="card">Εξαγωγές CSV (UTF-8, «;»):
+{% if cov.version %}<a href="/schedule/versions/{{ cov.version.id }}/export.csv">Πρόγραμμα</a> · {% endif %}
+<a href="/reports/gaps.csv?year={{ y }}&month={{ m }}">Ακάλυπτη ζήτηση</a> · <a href="/reports/hours.csv?year={{ y }}&month={{ m }}">Ώρες ανά εργαζόμενο</a>
+{% if costs is not none %} · <a href="/reports/costs.csv?year={{ y }}&month={{ m }}">Κόστος & περιθώριο ανά σημείο</a>{% endif %}</div>
+
+<h2>Κάλυψη</h2>
+<p>Κάλυψη {{ cov.pct|num }}% · ζήτηση {{ cov.total_demand_h|num }} ώρες · ακάλυπτες {{ cov.total_uncovered_h|num }} · <a href="/coverage?year={{ y }}&month={{ m }}">αναλυτικά</a></p>
+
+<h2>Ώρες: προγραμματισμένες / πραγματικές / εγκεκριμένες</h2>
+<table><tr><th>Εργαζόμενος</th><th class="num">Συμβατικές (αναλογία)</th><th class="num">Προγρ.</th><th class="num">Πραγμ.</th><th class="num">Εγκεκρ.</th><th class="num">Εγκεκρ. − Προγρ.</th></tr>
+{% for r in hrs %}<tr><td>{{ r.employee.full_name }}</td><td class="num">{{ r.contract_h|num }}</td><td class="num">{{ r.planned_h|num }}</td><td class="num">{{ r.actual_h|num }}</td><td class="num">{{ r.approved_h|num }}</td>
+<td class="num {{ 'bad' if r.diff_h < 0 else '' }}">{{ r.diff_h|num }}</td></tr>{% endfor %}</table>
+
+{% if costs is not none %}
+<h2>Κόστος εργοδότη: προγραμματισμένο έναντι πραγματικού</h2>
+{{ ui.estimate_banner() }}
+<p class="small">Προγραμματισμένο: από το δημοσιευμένο πρόγραμμα. Πραγματικό: {{ 'τρέχουσα έκδοση μισθοδοσίας v' ~ costs.run.version_no if costs.actual_source == 'run' else 'εκτίμηση από εγκεκριμένες ώρες (χωρίς υπολογισμό μισθοδοσίας)' }}.</p>
+<h3>Ανά σημείο (με έσοδα & περιθώριο όπου έχει οριστεί τιμή χρέωσης)</h3>
+<table><tr><th>Σημείο</th><th class="num">Βάρδιες</th><th class="num">Κόστος/βάρδια</th><th class="num">Κόστος προγρ.</th><th class="num">Κόστος πραγμ.</th><th class="num">Έσοδα προγρ.</th><th class="num">Έσοδα πραγμ.</th><th class="num">Περιθ. προγρ.</th><th class="num">Περιθ. πραγμ.</th></tr>
+{% for r in costs.sites %}<tr><td>{{ r.site }}</td><td class="num">{{ r.shifts }}</td><td class="num">{{ r.cost_per_shift|money }}</td><td class="num">{{ r.planned|money }}</td><td class="num">{{ r.actual|money }}</td>
+<td class="num">{{ r.revenue_planned|money }}</td><td class="num">{{ r.revenue_actual|money }}</td><td class="num">{{ r.margin_planned|money }}</td><td class="num">{{ r.margin_actual|money }}</td></tr>{% endfor %}</table>
+<h3>Ανά εργαζόμενο</h3>
+<table><tr><th>Εργαζόμενος</th><th class="num">Προγρ.</th><th class="num">Πραγμ.</th><th class="num">Διαφορά</th></tr>
+{% for r in costs.employees %}<tr><td>{{ r.employee }}</td><td class="num">{{ r.planned|money }}</td><td class="num">{{ r.actual|money }}</td><td class="num">{{ r.diff|money }}</td></tr>{% endfor %}
+<tr><th>Σύνολο</th><th class="num">{{ costs.total_planned|money }}</th><th class="num">{{ costs.total_actual|money }}</th><th class="num">{{ (costs.total_actual - costs.total_planned)|money }}</th></tr></table>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}{{ e.full_name }}{% endblock %}
+{% block content %}
+<h1>{{ e.full_name }} <span class="muted small">{{ e.code }}</span></h1>
+{% set w = ctx.can('employees.write') %}
+<details class="card" {% if w %}open{% endif %}><summary>Στοιχεία & όρια</summary>
+<form method="post" action="/employees/{{ e.id }}">{{ ui.csrf() }}{% include "_employee_fields.html" %}{% if w %}<button>Αποθήκευση</button>{% endif %}</form></details>
+
+<div class="grid">
+<div class="card"><h3>Προσόντα / άδειες</h3>
+<table><tr><th>Προσόν</th><th>Αρ.</th><th>Ισχύς</th><th></th></tr>
+{% for q in quals %}<tr><td>{{ q.qualification.name }}</td><td>{{ q.licence_number or '' }}</td><td>{{ q.valid_from|dmy }} – {{ q.valid_until|dmy if q.valid_until else '…' }}</td>
+<td>{% if w %}<form method="post" action="/employees/{{ e.id }}/qualifications/{{ q.id }}/delete" class="inline">{{ ui.csrf() }}<button class="link">×</button></form>{% endif %}</td></tr>{% endfor %}</table>
+{% if w %}<form method="post" action="/employees/{{ e.id }}/qualifications" class="row">{{ ui.csrf() }}
+<label>Προσόν<select name="qualification_id">{% for q in all_quals %}<option value="{{ q.id }}">{{ q.code }} – {{ q.name }}</option>{% endfor %}</select></label>
+<label>Αριθμός<input name="licence_number"></label><label>Από<input type="date" name="valid_from"></label><label>Λήξη<input type="date" name="valid_until"></label><button>+</button></form>{% endif %}
+</div>
+
+<div class="card"><h3>Εβδομαδιαία μη διαθεσιμότητα</h3>
+<table>{% for x in weekly %}<tr><td>{{ WEEKDAYS[x.weekday] }}</td><td>{{ x.start_time.strftime('%H:%M') }}–{{ x.end_time.strftime('%H:%M') }}</td>
+<td>{% if w %}<form method="post" action="/employees/{{ e.id }}/unavailability/{{ x.id }}/delete" class="inline">{{ ui.csrf() }}<button class="link">×</button></form>{% endif %}</td></tr>{% else %}<tr><td class="muted">Καμία</td></tr>{% endfor %}</table>
+{% if w %}<form method="post" action="/employees/{{ e.id }}/unavailability" class="row">{{ ui.csrf() }}
+<label>Ημέρα<select name="weekday">{% for d in WEEKDAYS %}<option value="{{ loop.index0 }}">{{ d }}</option>{% endfor %}</select></label>
+<label>Από<input type="time" name="start_time" value="00:00" required></label><label>Έως<input type="time" name="end_time" value="23:59" required></label><button>+</button></form>
+<p class="small muted">Αν η λήξη είναι πριν την έναρξη, το διάστημα συνεχίζει στην επόμενη ημέρα.</p>{% endif %}
+</div>
+
+<div class="card"><h3>Σημεία: επιλέξιμα / απαγορευμένα / προτιμώμενα</h3>
+<table>{% for r in site_rules %}<tr><td>{{ r.site.name }}</td><td>{{ {'eligible':'Εγκεκριμένος','prohibited':'Απαγορεύεται','preferred':'Προτιμά'}[r.rule] }}</td>
+<td>{% if w %}<form method="post" action="/employees/{{ e.id }}/site-rules/{{ r.id }}/delete" class="inline">{{ ui.csrf() }}<button class="link">×</button></form>{% endif %}</td></tr>{% else %}<tr><td class="muted">Χωρίς ειδικούς κανόνες</td></tr>{% endfor %}</table>
+{% if w %}<form method="post" action="/employees/{{ e.id }}/site-rules" class="row">{{ ui.csrf() }}
+<label>Σημείο<select name="site_id">{% for s in sites %}<option value="{{ s.id }}">{{ s.name }}{% if s.requires_explicit_eligibility %} (απαιτεί έγκριση){% endif %}</option>{% endfor %}</select></label>
+<label>Κανόνας<select name="rule"><option value="eligible">Εγκεκριμένος</option><option value="prohibited">Απαγορεύεται</option><option value="preferred">Προτιμά</option></select></label><button>+</button></form>{% endif %}
+</div>
+
+<div class="card"><h3>Σταθερές θέσεις</h3>
+<table>{% for f in fixed %}<tr><td>{{ f.requirement.site.name }} – {{ f.requirement.name }}</td><td>{% for x in f.weekdays.split(',') if x %}{{ WEEKDAYS[x|int] }} {% endfor %}</td>
+<td>{% if w %}<form method="post" action="/employees/{{ e.id }}/fixed-posts/{{ f.id }}/delete" class="inline">{{ ui.csrf() }}<button class="link">×</button></form>{% endif %}</td></tr>{% else %}<tr><td class="muted">Καμία</td></tr>{% endfor %}</table>
+{% if w %}<form method="post" action="/employees/{{ e.id }}/fixed-posts">{{ ui.csrf() }}
+<label>Θέση<select name="requirement_id">{% for r in reqs %}<option value="{{ r.id }}">{{ r.site.name }} – {{ r.name }}</option>{% endfor %}</select></label>
+{{ ui.weekday_boxes('weekdays[]', [0,1,2,3,4]) }}<button>+</button></form>
+<p class="small muted">Ο αλγόριθμος προσπαθεί να τοποθετεί τον εργαζόμενο σε αυτή τη θέση (ισχυρός ήπιος στόχος· οι σκληροί κανόνες υπερισχύουν).</p>{% endif %}
+</div>
+
+<div class="card"><h3>Απουσίες</h3>
+<table>{% for a in absences %}<tr><td><a href="/absences/{{ a.id }}">{{ a.start_date|dmy }} – {{ a.end_date|dmy }}</a></td><td>{{ ABSENCE_KINDS[a.kind] }}</td><td>{{ ABSENCE_STATUS[a.status] }}</td></tr>{% else %}<tr><td class="muted">Καμία</td></tr>{% endfor %}</table>
+<a href="/absences">Καταχώριση απουσίας</a></div>
+</div>
+
+{% if comp is not none %}
+<div class="card"><h3>Όροι αμοιβής (συμβατικοί, με ημερομηνία ισχύος)</h3>
+<p class="small muted">Οι θεσμικοί κανόνες (ελάχιστες προσαυξήσεις, εισφορές) ορίζονται στις Ρυθμίσεις. Αν η σύμβαση ορίζει χαμηλότερη προσαύξηση από το ελάχιστο, εφαρμόζεται το ελάχιστο και εμφανίζεται προειδοποίηση.</p>
+<table><tr><th>Ισχύς</th><th>Βάση</th><th class="num">Ωρομίσθιο</th><th class="num">Μισθός</th><th>Νυχτ. %</th><th>Κυρ./αργ. %</th><th>Υπερεργ. %</th><th>Υπερωρ. %</th><th>Σημ.</th></tr>
+{% for c in comp %}<tr><td>{{ c.effective_from|dmy }} – {{ c.effective_to|dmy if c.effective_to else '…' }}</td><td>{{ 'Ωρομίσθιο' if c.pay_basis=='hourly' else 'Μηνιαίος' }}</td>
+<td class="num">{{ c.hourly_rate|money if c.hourly_rate else '—' }}</td><td class="num">{{ c.monthly_salary|money if c.monthly_salary else '—' }}</td>
+<td>{{ c.night_premium_pct or '—' }}</td><td>{{ c.sunday_holiday_premium_pct or '—' }}</td><td>{{ c.overwork_premium_pct or '—' }}</td><td>{{ c.overtime_premium_pct or '—' }}</td><td class="small">{{ c.notes or '' }}</td></tr>{% endfor %}</table>
+{% if ctx.can('compensation.write') %}<form method="post" action="/employees/{{ e.id }}/compensation" class="row">{{ ui.csrf() }}
+<label>Ισχύει από*<input type="date" name="effective_from" required></label><label>Έως<input type="date" name="effective_to"></label>
+<label>Βάση<select name="pay_basis"><option value="hourly">Ωρομίσθιο</option><option value="monthly">Μηνιαίος μισθός</option></select></label>
+<label>Ωρομίσθιο €<input name="hourly_rate"></label><label>Μηνιαίος €<input name="monthly_salary"></label>
+<label>Νυχτ. %<input name="night_premium_pct"></label><label>Κυρ./αργ. %<input name="sunday_holiday_premium_pct"></label>
+<label>Υπερεργ. %<input name="overwork_premium_pct"></label><label>Υπερωρ. %<input name="overtime_premium_pct"></label>
+<label>Σημειώσεις<input name="notes"></label><button>Νέοι όροι</button></form>
+<p class="small muted">Οι προηγούμενοι όροι κλείνουν αυτόματα την προηγούμενη ημέρα (καταγράφεται στο ιστορικό).</p>{% endif %}
+</div>{% endif %}
+{% endblock %}

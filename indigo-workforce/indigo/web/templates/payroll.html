@@ -1,0 +1,33 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}Μισθοδοσία{% endblock %}
+{% block content %}
+<h1>Μισθοδοσία & κόστος εργοδότη</h1>{{ ui.month_nav('/payroll', y, m) }}
+{{ ui.estimate_banner() }}
+<div class="card">
+<p>Περίοδος: <strong>{{ MONTHS[m] }} {{ y }}</strong> · Κατάσταση: <span class="pill {{ 'bad' if period.status == 'locked' else 'ok' }}">{{ 'Κλειδωμένη' if period.status == 'locked' else 'Ανοιχτή' }}</span>
+{% if period.reopen_count %} · επανανοίχθηκε {{ period.reopen_count }} φορές{% endif %}</p>
+<p class="small">Παράμετροι: <strong>{{ rs.name if rs else 'Προεπιλογές' }}</strong> {% if rs and rs.verified %}<span class="pill ok">επαληθευμένες</span>{% else %}<span class="pill bad">ΜΗ επαληθευμένες</span>{% endif %}
+<details class="small"><summary>Τιμές</summary>{% for k, v in rules.items() %}{{ RULE_LABELS.get(k, k) }}: <strong>{{ v }}</strong><br>{% endfor %}</details></p>
+<p class="small muted">Βάση υπολογισμού: <strong>εγκεκριμένες ώρες</strong> (όχι το πρόγραμμα). Δεν υπολογίζεται φόρος/καθαρές αποδοχές.</p>
+{% if period.status == 'open' %}
+  {% if ctx.can('payroll.run') %}<form method="post" action="/payroll/run" class="inline">{{ ui.csrf() }}<input type="hidden" name="year" value="{{ y }}"><input type="hidden" name="month" value="{{ m }}"><input type="hidden" name="revision" value="{{ period.revision }}"><button>Υπολογισμός (νέα έκδοση)</button></form>{% endif %}
+  {% if ctx.can('payroll.lock') and run %}<form method="post" action="/payroll/lock" class="inline">{{ ui.csrf() }}<input type="hidden" name="year" value="{{ y }}"><input type="hidden" name="month" value="{{ m }}"><input type="hidden" name="revision" value="{{ period.revision }}"><button class="secondary">Κλείδωμα περιόδου</button></form>{% endif %}
+{% elif ctx.can('payroll.reopen') %}<form method="post" action="/payroll/reopen" class="row">{{ ui.csrf() }}<input type="hidden" name="year" value="{{ y }}"><input type="hidden" name="month" value="{{ m }}"><input type="hidden" name="revision" value="{{ period.revision }}">
+  <label>Αιτιολογία επανανοίγματος*<input name="reason" required minlength="5" size="50"></label><button class="danger">Επανάνοιγμα</button></form>
+{% else %}<p class="small muted">Η περίοδος είναι κλειδωμένη· μόνο διαχειριστής μπορεί να την ανοίξει ξανά με αιτιολογία.</p>{% endif %}
+</div>
+{% if run %}
+<h2>Έκδοση υπολογισμού {{ run.version_no }} · {{ run.created_at|lt('%d/%m/%Y %H:%M') }}</h2>
+<div class="grid">
+<div class="card"><div class="muted">Μικτές αποδοχές</div><div class="kpi">{{ run.totals.gross|money }}</div></div>
+<div class="card"><div class="muted">Εργοδοτικές εισφορές</div><div class="kpi">{{ run.totals.employer_contributions|money }}</div></div>
+<div class="card"><div class="muted">Κόστος εργοδότη</div><div class="kpi">{{ run.totals.employer_cost|money }}</div></div>
+<div class="card"><div class="muted">Πληρωτέες ώρες</div><div class="kpi">{{ (run.totals.paid_minutes|int / 60)|num }}</div></div>
+</div>
+<p><a href="/payroll/runs/{{ run.id }}">Αναλυτικές γραμμές</a>{% if ctx.can('reports.export') %} · <a href="/payroll/runs/{{ run.id }}/export.csv">Εξαγωγή για έλεγχο λογιστή (CSV)</a>{% endif %}</p>
+{% if run.warnings %}<details class="card" open><summary class="warn">Προειδοποιήσεις ({{ run.warnings|length }})</summary><ul class="small">{% for w in run.warnings %}<li>{{ w }}</li>{% endfor %}</ul></details>{% endif %}
+<table><tr><th>Εργαζόμενος</th><th class="num">Ώρες</th><th class="num">Μικτά</th><th class="num">Εισφ. εργοδότη</th><th class="num">Εισφ. εργαζομένου</th><th class="num">Πρόβλεψη δώρων</th><th class="num">Κόστος εργοδότη</th><th></th></tr>
+{% for t in totals %}<tr><td>{{ t.employee.full_name }}</td><td class="num">{{ (t.paid_minutes/60)|num(2) }}</td><td class="num">{{ t.gross|money }}</td><td class="num">{{ t.employer_contributions|money }}</td>
+<td class="num">{{ t.employee_contributions|money }}</td><td class="num">{{ t.bonus_accrual|money }}</td><td class="num"><strong>{{ t.employer_cost|money }}</strong></td><td><a href="/payroll/runs/{{ run.id }}?employee={{ t.employee_id }}">γραμμές</a></td></tr>{% endfor %}</table>
+{% else %}<p class="muted">Δεν έχει γίνει υπολογισμός για την περίοδο.</p>{% endif %}
+{% if runs|length > 1 %}<h3>Προηγούμενες εκδόσεις (διατηρούνται)</h3><ul>{% for r in runs %}<li><a href="/payroll/runs/{{ r.id }}">Έκδοση {{ r.version_no }}</a> · {{ r.created_at|lt('%d/%m/%Y %H:%M') }} · {{ r.totals.employer_cost|money }}{% if r.is_current %} (τρέχουσα){% endif %}</li>{% endfor %}</ul>{% endif %}
+{% endblock %}

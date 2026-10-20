@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="el">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ product_name }}{% endblock %} · {{ product_name }}</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+{% import "_m.html" as ui with context %}
+<header class="top">
+  <a class="brand" href="/">{{ product_name }}</a>
+  <nav>
+    <a href="/">Πίνακας</a>
+    <a href="/employees">Εργαζόμενοι</a>
+    <a href="/clients">Πελάτες & σημεία</a>
+    <a href="/schedule">Πρόγραμμα</a>
+    <a href="/coverage">Κάλυψη</a>
+    <a href="/absences">Απουσίες</a>
+    <a href="/attendance">Παρουσίες</a>
+    {% if ctx.can('payroll.read') %}<a href="/payroll">Μισθοδοσία</a>{% endif %}
+    <a href="/reports">Αναφορές</a>
+    {% if ctx.can('settings.manage') %}<a href="/settings">Ρυθμίσεις</a>{% endif %}
+    {% if ctx.can('audit.read') %}<a href="/settings/audit">Ιστορικό</a>{% endif %}
+  </nav>
+  <div class="who">{{ ctx.user.full_name }} · {{ ROLES[ctx.user.role] }} · {{ ctx.company.name }}
+    <form method="post" action="/logout" class="inline">{{ ui.csrf() }}<button class="link">Έξοδος</button></form></div>
+</header>
+{% if ctx.company.is_demo %}<div class="banner demo">ΔΟΚΙΜΑΣΤΙΚΗ ΕΤΑΙΡΕΙΑ – ΣΥΝΘΕΤΙΚΑ ΔΕΔΟΜΕΝΑ. Τα ονόματα και τα ποσά είναι επινοημένα.</div>{% endif %}
+<main>
+{% if msg %}<div class="flash ok">{{ msg }}</div>{% endif %}
+{% if err %}<div class="flash err">{{ err }}</div>{% endif %}
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

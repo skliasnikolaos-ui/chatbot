@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}Ιστορικό εγγραφής{% endblock %}
+{% block content %}
+<p><a href="/attendance">‹ Παρουσίες</a></p>
+<h1>Ιστορικό διορθώσεων ({{ 'παρουσία' if kind == 'attendance' else 'εγκεκριμένες ώρες' }})</h1>
+<table><tr><th>#</th><th>Κατάσταση</th><th>Διάστημα</th><th>Αιτιολογία</th><th>Καταχώριση</th></tr>
+{% for r in chain %}<tr><td>{{ r.id }}</td><td>{{ r.status }}</td>
+<td>{% if kind == 'attendance' %}{{ r.clock_in|lt('%d/%m %H:%M') }} – {{ r.clock_out|lt('%d/%m %H:%M') }}{% else %}{{ r.start_utc|lt('%d/%m %H:%M') }} – {{ r.end_utc|lt('%d/%m %H:%M') }} ({{ r.basis }}){% endif %}</td>
+<td>{{ r.reason or '' }}</td><td>{{ r.created_at|lt('%d/%m/%Y %H:%M') }}</td></tr>{% endfor %}</table>
+{% endblock %}

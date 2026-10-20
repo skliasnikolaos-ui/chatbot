@@ -1,0 +1,28 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}Αυτόματος προγραμματισμός{% endblock %}
+{% block content %}
+<h1>Αυτόματος προγραμματισμός</h1>{{ ui.month_nav('/schedule/generate', y, m) }}
+<div class="card small">
+<p><strong>Μηχανή:</strong> Google OR-Tools CP-SAT (βελτιστοποίηση με περιορισμούς). Οι σκληροί κανόνες δεν χαλαρώνουν ποτέ: επικαλύψεις, διαθεσιμότητα/άδειες, προσόντα & λήξεις, όρια ωρών, ελάχιστη ανάπαυση, συνεχόμενες ημέρες, επιλεξιμότητα σημείων, κλειδωμένες αναθέσεις.</p>
+<p><strong>Προτεραιότητες:</strong> 1) Μέγιστη κάλυψη (πρώτη, απόλυτη προτεραιότητα). 2) Ήπιοι στόχοι με τα παρακάτω βάρη (0 = αγνόηση, 10 = πολύ σημαντικό).</p>
+<p>Βάση: {% if draft %}πρόχειρο v{{ draft.number }} (θα αντικατασταθεί από νέο πρόχειρο){% elif published %}δημοσιευμένο v{{ published.number }}{% else %}κανένα πρόγραμμα{% endif %}. Αναθέσεις εκτός εύρους διατηρούνται· κλειδωμένες αναθέσεις εντός εύρους διατηρούνται. Το αποτέλεσμα είναι <strong>πρόχειρο</strong> και απαιτεί έγκριση για δημοσίευση.</p></div>
+<form method="post" action="/schedule/generate" class="card">{{ ui.csrf() }}
+<input type="hidden" name="year" value="{{ y }}"><input type="hidden" name="month" value="{{ m }}"><input type="hidden" name="period_revision" value="{{ period.revision }}">
+<h3>Βάρη ήπιων στόχων</h3>
+<table><tr><th>Στόχος</th><th>Βάρος 0–10</th><th>Μονάδα</th></tr>
+{% set names = {'cost':'Χαμηλότερο κόστος','night_fairness':'Δίκαιη κατανομή νυχτερινών','weekend_fairness':'Δίκαιη κατανομή Σ/Κ & αργιών','preferences':'Προτιμήσεις εργαζομένων','continuity':'Συνέχεια ανά θέση','balance':'Ισορροπία φόρτου έναντι σύμβασης','stability':'Ελάχιστες αλλαγές σε δημοσιευμένο','fixed_posts':'Σταθερές θέσεις','prefer_regular_staff':'Προτίμηση τακτικού προσωπικού έναντι relief'} %}
+{% for k, (unit, mult) in units.items() %}<tr><td>{{ names[k] }}</td><td><input type="number" name="w_{{ k }}" min="0" max="10" value="{{ weights.as_dict()[k] }}"></td><td class="small muted">× {{ mult }} πόντοι {{ unit }}</td></tr>{% endfor %}</table>
+<h3>Εύρος (προαιρετικό – για επαναδημιουργία επιλεγμένων)</h3>
+<div class="row"><label>Από<input type="date" name="date_from"></label><label>Έως<input type="date" name="date_to"></label>
+<label>Χρονικό όριο (δευτ.)<input type="number" name="time_limit" min="5" max="300" value="30"></label></div>
+<div>Σημεία: {% for s in sites %}<label class="inline"><input type="checkbox" name="site_ids[]" value="{{ s.id }}">{{ s.name }}</label>{% endfor %} <span class="small muted">(κανένα = όλα)</span></div>
+<p><button>Δημιουργία προτεινόμενου προγράμματος</button></p></form>
+
+<h2>Έλεγχος επάρκειας προσωπικού (ενδεικτικός)</h2>
+<p class="small muted">Αναγκαία, όχι επαρκής, συνθήκη: συγκρίνει ώρες ζήτησης με τη μέγιστη διαθέσιμη χωρητικότητα κατάλληλων εργαζομένων (η χωρητικότητα μοιράζεται μεταξύ θέσεων).</p>
+<table><tr><th>Σημείο</th><th>Θέση</th><th class="num">Ζήτηση (ώρες)</th><th class="num">Κατάλληλοι</th><th class="num">Χωρητικότητα (ώρες)</th><th></th></tr>
+{% for f in feas %}<tr><td>{{ f.site }}</td><td>{{ f.requirement }}</td><td class="num">{{ f.demand_h|num }}</td><td class="num">{{ f.qualified }}</td><td class="num">{{ f.capacity_h|num }}</td>
+<td>{% if f.ok %}<span class="ok">✓</span>{% else %}<span class="bad">Ανεπαρκές</span>{% endif %}</td></tr>{% endfor %}</table>
+
+{% if runs %}<h2>Πρόσφατες εκτελέσεις</h2><table><tr><th>#</th><th>Χρόνος</th><th>Αποτέλεσμα</th><th>Κάλυψη</th><th></th></tr>
+{% for r in runs %}<tr><td>{{ r.id }}</td><td>{{ r.created_at|lt('%d/%m %H:%M') }}</td><td>{{ r.status }}</td><td>{{ r.report.stats.coverage_pct if r.report.stats and r.report.stats.coverage_pct is defined else '—' }}%</td><td><a href="/schedule/runs/{{ r.id }}">Προβολή</a></td></tr>{% endfor %}</table>{% endif %}
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}Απουσία{% endblock %}
+{% block content %}
+<p><a href="/absences">‹ Απουσίες</a></p>
+<h1>{{ a.employee.full_name }}: {{ ABSENCE_KINDS[a.kind] }} {{ a.start_date|dmy }} – {{ a.end_date|dmy }}</h1>
+<p>Κατάσταση: {{ ABSENCE_STATUS[a.status] }}{% if a.notes %} · {{ a.notes }}{% endif %}</p>
+<h2>Επηρεαζόμενες βάρδιες ({{ affected|length }})</h2>
+<table><tr><th>Ημ/νία</th><th>Σημείο</th><th>Θέση</th><th>Ώρες</th><th>Έκδοση</th><th></th></tr>
+{% for x in affected %}{% set v = versions[x.version_id] %}<tr><td>{{ x.service_date|dmy }}</td><td>{{ x.site.name }}</td><td>{{ x.requirement.name }}</td><td>{{ x.start_utc|lt }} – {{ x.end_utc|lt('%H:%M') }}</td>
+<td><span class="pill {{ v.status }}">v{{ v.number }} {{ v.status }}</span></td><td><a href="/absences/{{ a.id }}/assignments/{{ x.id }}">Υποψήφιοι αντικαταστάτες</a></td></tr>{% else %}<tr><td colspan="6" class="muted">Καμία βάρδια σε δημοσιευμένο ή πρόχειρο πρόγραμμα.</td></tr>{% endfor %}</table>
+{% endblock %}

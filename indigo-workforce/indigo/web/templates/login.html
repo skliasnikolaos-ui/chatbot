@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="el"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Σύνδεση · {{ product_name }}</title><link rel="stylesheet" href="/static/style.css"></head>
+<body><main class="narrow">
+<h1>{{ product_name }}</h1>
+<p class="muted">Προγραμματισμός βαρδιών, παρουσίες και κόστος προσωπικού ασφαλείας</p>
+{% if error %}<div class="flash err">{{ error }}</div>{% endif %}
+<form method="post" action="/login" class="card">
+  <label>Email<input type="email" name="email" required autocomplete="username"></label>
+  <label>Κωδικός<input type="password" name="password" required autocomplete="current-password"></label>
+  <button type="submit">Σύνδεση</button>
+</form>
+</main></body></html>

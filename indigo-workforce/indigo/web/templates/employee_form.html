@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}Νέος εργαζόμενος{% endblock %}
+{% block content %}
+<h1>Νέος εργαζόμενος</h1>
+<p class="small muted">Καταχωρίστε μόνο τα στοιχεία που χρειάζονται για προγραμματισμό, παρουσίες και κόστος.</p>
+<form method="post" action="/employees/new" class="card">{{ ui.csrf() }}{% include "_employee_fields.html" %}<button>Δημιουργία</button></form>
+{% endblock %}

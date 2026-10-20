@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}Εισαγωγή{% endblock %}
+{% block content %}
+<h1>Εισαγωγή {{ 'εργαζομένων' if kind == 'employees' else 'πελατών, σημείων & απαιτήσεων κάλυψης' }} από CSV</h1>
+<div class="card small">
+<p>Διαχωριστικό <code>;</code> ή <code>,</code>, κωδικοποίηση UTF-8, πρώτη γραμμή με ονόματα στηλών:</p>
+<code>{{ columns|join(';') }}</code>
+{% if kind == 'employees' %}<p>qualifications: <code>ΚΩΔ[:ΛΗΞΗ]|ΚΩΔ</code> π.χ. <code>ΑΦΑ:2027-05-31|ΠΥΡ</code>. pay_basis: hourly|monthly. Ημερομηνίες ΕΕΕΕ-ΜΜ-ΗΗ ή ΗΗ/ΜΜ/ΕΕΕΕ. Υπάρχον κωδικός → ενημέρωση.</p>
+{% else %}<p>Μία γραμμή ανά απαίτηση κάλυψης. weekdays: <code>all</code>, <code>weekdays</code> ή <code>0,1,2</code> (0=Δευτέρα). start/end ΩΩ:ΛΛ (λήξη ≤ έναρξη = μεταμεσονύκτια). shift_hours: διάσπαση σε βάρδιες. holiday_mode: normal|skip|sunday_rule.</p>{% endif %}
+<p>Η εισαγωγή είναι «όλα ή τίποτα»: αν υπάρχει σφάλμα σε οποιαδήποτε γραμμή, δεν αποθηκεύεται τίποτα. Δείγμα: <code>sample_data/</code> στο αποθετήριο.</p></div>
+<form method="post" enctype="multipart/form-data" class="card">{{ ui.csrf() }}
+<label>Αρχείο CSV<input type="file" name="file" accept=".csv,text/csv"></label>
+<label>ή επικόλληση<textarea name="text" rows="8">{{ text or '' }}</textarea></label>
+<label class="inline"><input type="radio" name="commit" value="0" checked> Έλεγχος (χωρίς αποθήκευση)</label>
+<label class="inline"><input type="radio" name="commit" value="1"> Εισαγωγή</label>
+<button>Εκτέλεση</button></form>
+{% if result %}<div class="card">
+<h3>{{ 'Αποτέλεσμα εισαγωγής' if committed else 'Αποτέλεσμα ελέγχου' }}</h3>
+<p>Γραμμές: {{ result.rows }}{% if kind == 'employees' %} · Νέοι: {{ result.created }} · Ενημερώσεις: {{ result.updated }}{% else %} · Σημεία: {{ result.sites }} · Απαιτήσεις: {{ result.requirements }}{% endif %}</p>
+{% if result.errors %}<ul class="bad">{% for e in result.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% elif not committed %}<p class="ok">Χωρίς σφάλματα — επιλέξτε «Εισαγωγή» για αποθήκευση.</p>{% else %}<p class="ok">Αποθηκεύτηκε.</p>{% endif %}
+</div>{% endif %}
+{% endblock %}

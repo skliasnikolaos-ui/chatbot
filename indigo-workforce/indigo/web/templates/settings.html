@@ -1,0 +1,56 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}Ρυθμίσεις{% endblock %}
+{% block content %}
+<h1>Ρυθμίσεις εταιρείας</h1>
+<div class="card"><form method="post" action="/settings/company" class="row">{{ ui.csrf() }}
+<label>Επωνυμία<input name="name" value="{{ ctx.company.name }}" required></label><button>Αποθήκευση</button></form></div>
+
+<h2>Χρήστες & δικαιώματα</h2>
+<table><tr><th>Όνομα</th><th>Email</th><th>Ρόλος</th><th>Ενεργός</th><th>Νέος κωδικός</th><th></th></tr>
+{% for u in users %}<tr>
+<td>{{ u.full_name }}</td><td>{{ u.email }}</td>
+<td><select name="role" form="u{{ u.id }}">{% for k, v in ROLES.items() %}<option value="{{ k }}" {% if u.role == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></td>
+<td><input type="checkbox" name="is_active" value="1" form="u{{ u.id }}" {% if u.is_active %}checked{% endif %}></td>
+<td><input type="password" name="password" minlength="10" autocomplete="new-password" form="u{{ u.id }}"></td>
+<td><form method="post" action="/settings/users/{{ u.id }}" id="u{{ u.id }}">{{ ui.csrf() }}<button class="secondary">Αποθήκευση</button></form></td></tr>{% endfor %}
+</table>
+<form method="post" action="/settings/users" class="card row">{{ ui.csrf() }}
+<label>Ονοματεπώνυμο<input name="full_name" required></label><label>Email<input type="email" name="email" required></label>
+<label>Ρόλος<select name="role">{% for k, v in ROLES.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+<label>Κωδικός (≥10)<input type="password" name="password" minlength="10" required autocomplete="new-password"></label><button>Νέος χρήστης</button></form>
+<details class="card"><summary>Πίνακας δικαιωμάτων ρόλων</summary>
+<p class="small">Τα δικαιώματα ελέγχονται στον διακομιστή σε κάθε αίτημα (και στις εξαγωγές).</p>
+<table><tr><th>Δικαίωμα</th>{% for r in ROLES %}<th>{{ ROLES[r] }}</th>{% endfor %}</tr>
+{% for p in ['employees.write','compensation.read','sites.write','schedule.write','schedule.publish','absences.write','attendance.write','attendance.approve','payroll.read','payroll.run','payroll.lock','payroll.reopen','reports.cost','users.manage','audit.read'] %}
+<tr><td>{{ p }}</td>{% for r in ROLES %}<td>{{ '✓' if allowed(r, p) else '' }}</td>{% endfor %}</tr>{% endfor %}</table></details>
+
+<h2>Προσόντα / άδειες</h2>
+<table><tr><th>Κωδικός</th><th>Ονομασία</th></tr>{% for q in quals %}<tr><td>{{ q.code }}</td><td>{{ q.name }}</td></tr>{% endfor %}</table>
+<form method="post" action="/settings/qualifications" class="card row">{{ ui.csrf() }}<label>Κωδικός<input name="code" required></label>
+<label>Ονομασία<input name="name" required></label><button>Προσθήκη</button></form>
+
+<h2>Αργίες</h2>
+<p class="small muted">Προεπιλεγμένο ημερολόγιο ελληνικών αργιών (υπολογισμός Ορθόδοξου Πάσχα). Ποιες αργίες δίνουν προσαύξηση πρέπει να επιβεβαιωθεί από λογιστή.</p>
+<details><summary>{{ hols|length }} αργίες</summary><table>{% for h in hols %}<tr><td>{{ h.date|dmy }}</td><td>{{ h.date|wd }}</td><td>{{ h.name }}</td>
+<td><form method="post" action="/settings/holidays/{{ h.id }}/delete" class="inline">{{ ui.csrf() }}<button class="link">διαγραφή</button></form></td></tr>{% endfor %}</table></details>
+<div class="row">
+<form method="post" action="/settings/holidays" class="card row">{{ ui.csrf() }}<label>Ημερομηνία<input type="date" name="date" required></label>
+<label>Ονομασία<input name="name" required></label><button>Προσθήκη</button></form>
+<form method="post" action="/settings/holidays" class="card row">{{ ui.csrf() }}<label>Έτος<input type="number" name="seed_year" min="2000" max="2099" required></label><button class="secondary">Εισαγωγή προεπιλογών έτους</button></form>
+</div>
+
+<h2>Παράμετροι μισθοδοσίας (θεσμικοί κανόνες, με ημερομηνία ισχύος)</h2>
+{{ ui.estimate_banner() }}
+<table><tr><th>Ονομασία</th><th>Ισχύς</th><th>Επαληθευμένο</th><th>Τιμές</th><th>Πηγές</th></tr>
+{% for rs in rulesets %}<tr><td>{{ rs.name }}</td><td>{{ rs.effective_from|dmy }} – {{ rs.effective_to|dmy if rs.effective_to else '…' }}</td>
+<td>{{ '✓' if rs.verified else 'ΟΧΙ' }}</td><td class="small">{% for k, v in rs.rules.items() %}{{ RULE_LABELS.get(k, k) }}: <strong>{{ v }}</strong><br>{% endfor %}</td>
+<td class="small">{{ rs.source_notes or '' }}</td></tr>{% endfor %}</table>
+{% if ctx.can('payroll.rules') %}
+<details class="card"><summary>Νέο σύνολο παραμέτρων</summary>
+<form method="post" action="/settings/rulesets">{{ ui.csrf() }}
+<div class="row"><label>Ονομασία<input name="name" required></label><label>Ισχύει από<input type="date" name="effective_from" required></label>
+<label>Έως<input type="date" name="effective_to"></label></div>
+<div class="row">{% for k, v in DEFAULT_RULES.items() %}<label>{{ RULE_LABELS[k] }}<input name="{{ k }}" value="{{ (rulesets[0].rules.get(k) if rulesets else v) }}" required></label>{% endfor %}</div>
+<label>Πηγές / τεκμηρίωση (υποχρεωτικό για «επαληθευμένο»)<textarea name="source_notes" rows="3"></textarea></label>
+<label class="inline"><input type="checkbox" name="verified" value="1"> Επαληθευμένο από λογιστή/νομική πηγή</label>
+<button>Αποθήκευση</button></form></details>{% endif %}
+{% endblock %}

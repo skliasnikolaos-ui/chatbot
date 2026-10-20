@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}Αντικατάσταση{% endblock %}
+{% block content %}
+<p><a href="/absences/{{ absence.id }}">‹ Απουσία</a></p>
+<h1>Αντικατάσταση: {{ asg.employee.full_name }}</h1>
+<p>{{ asg.site.name }} – {{ asg.requirement.name }} · {{ asg.service_date|wd }} {{ asg.service_date|dmy }} · {{ asg.start_utc|lt }} → {{ asg.end_utc|lt }}</p>
+<div class="card small">Η επιλογή καταχωρίζεται σε <strong>πρόχειρο</strong>. Το δημοσιευμένο πρόγραμμα αλλάζει μόνο μετά από έγκριση & δημοσίευση· η προηγούμενη έκδοση διατηρείται στο ιστορικό.
+Αξιολόγηση έναντι: v{{ c.target_version.number }} ({{ c.target_version.status }}).</div>
+<h2>Επιλέξιμοι ({{ c.eligible|length }}), κατά σειρά πρότασης</h2>
+<table><tr><th>#</th><th>Εργαζόμενος</th><th class="num">Βαθμ.</th><th class="num">Κόστος βάρδιας (εκτ.)</th><th class="num">Ώρες εβδ. μετά</th><th class="num">Ώρες μήνα μετά</th><th class="num">Ανάπαυση πριν / μετά (ώρες)</th><th>Γιατί</th><th></th></tr>
+{% for x in c.eligible %}<tr><td>{{ loop.index }}</td><td>{{ x.name }}</td><td class="num">{{ x.score }}</td><td class="num">{{ x.cost_eur|money }}</td><td class="num">{{ x.week_hours_after }}</td><td class="num">{{ x.month_hours_after }}</td>
+<td class="num">{{ x.rest_before_h if x.rest_before_h is not none else '—' }} / {{ x.rest_after_h if x.rest_after_h is not none else '—' }}</td><td class="small">{{ x.reasons|join('; ') }}</td>
+<td>{% if ctx.can('schedule.write') %}<form method="post">{{ ui.csrf() }}<input type="hidden" name="employee_id" value="{{ x.employee_id }}"><input type="hidden" name="reason" value="Αντικατάσταση λόγω απουσίας #{{ absence.id }}"><button>Επιλογή</button></form>{% endif %}</td></tr>{% endfor %}</table>
+{% if ctx.can('schedule.write') %}<form method="post" class="card">{{ ui.csrf() }}<input type="hidden" name="reason" value="Απουσία #{{ absence.id }} – χωρίς αντικαταστάτη">
+<button class="danger">Καμία αντικατάσταση (η θέση μένει ακάλυπτη)</button></form>{% endif %}
+<details><summary>Αποκλεισμένοι ({{ c.rejected|length }}) λόγω σκληρών κανόνων</summary><table>
+{% for x in c.rejected %}<tr><td>{{ x.name }}</td><td class="small">{{ x.reasons|join('; ') }}</td></tr>{% endfor %}</table></details>
+{% endblock %}

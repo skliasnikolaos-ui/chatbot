@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}Γραμμές μισθοδοσίας{% endblock %}
+{% block content %}
+<p><a href="/payroll?year={{ period.year }}&month={{ period.month }}">‹ Μισθοδοσία</a></p>
+<h1>Έκδοση {{ run.version_no }} — {{ MONTHS[period.month] }} {{ period.year }}{% if not run.is_current %} <span class="pill">παλαιότερη</span>{% endif %}</h1>
+{{ ui.estimate_banner() }}
+<p class="small">Παράμετροι: {{ run.ruleset_snapshot.name }} · {{ 'επαληθευμένες' if run.ruleset_snapshot.verified else 'ΜΗ επαληθευμένες' }}</p>
+<table><tr><th>Εργαζόμενος</th><th>Κατηγορία</th><th>Σημείο</th><th class="num">Ώρες</th><th class="num">Τιμή</th><th class="num">%</th><th class="num">Ποσό</th></tr>
+{% for ln in lines %}<tr><td>{{ ln.employee.full_name }}</td><td>{{ CATEGORY_LABELS.get(ln.category, ln.category) }}</td><td>{{ ln.site_id or '' }}</td>
+<td class="num">{{ (ln.minutes/60)|num(2) if ln.minutes else '' }}</td><td class="num">{{ ln.rate|money if ln.rate else '' }}</td><td class="num">{{ ln.pct if ln.pct else '' }}</td><td class="num">{{ ln.amount|money }}</td></tr>{% endfor %}</table>
+{% endblock %}

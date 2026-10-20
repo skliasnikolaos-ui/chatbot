@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}Θέση{% endblock %}
+{% block content %}
+{% set p = version.period %}
+<p><a href="/schedule?year={{ p.year }}&month={{ p.month }}&v={{ version.id }}">‹ Πρόγραμμα v{{ version.number }}</a></p>
+<h1>{{ site.name }} – {{ req.name if req else '' }}</h1>
+<p>{{ slot.service_date|wd }} {{ slot.service_date|dmy }} · {{ slot.start|lt }} → {{ slot.end|lt }} · {{ (slot.minutes/60)|num }} ώρες{% if slot.night_minutes %} · νυχτερινές {{ (slot.night_minutes/60)|num }}{% endif %} · θέση #{{ slot.position }}</p>
+{% if not in_demand %}<div class="flash err">Η θέση δεν αντιστοιχεί πλέον σε τρέχουσα απαίτηση κάλυψης (άλλαξε η ζήτηση). Αφαιρέστε την ανάθεση.</div>{% endif %}
+<div class="card"><h3>Τρέχουσα ανάθεση</h3>
+{% if a %}<p><strong>{{ a.employee.full_name }}</strong> · προέλευση: {{ a.source }}{% if a.locked %} · 🔒 κλειδωμένη{% endif %}{% if a.note %} · {{ a.note }}{% endif %}</p>{% else %}<p class="bad">Ακάλυπτη</p>{% endif %}
+{% if version.status == 'draft' and ctx.can('schedule.write') %}
+<form method="post" action="/schedule/slot" class="inline">{{ ui.csrf() }}<input type="hidden" name="version_id" value="{{ version.id }}"><input type="hidden" name="slot_key" value="{{ slot.key }}"><input type="hidden" name="revision" value="{{ version.revision }}">
+{% if a %}{% if a.locked %}<button name="action" value="unlock" class="secondary">Ξεκλείδωμα</button>{% else %}<button name="action" value="lock" class="secondary">Κλείδωμα</button> <button name="action" value="clear" class="danger">Αφαίρεση</button>{% endif %}{% endif %}
+</form>{% elif version.status != 'draft' %}<p class="small muted">Η έκδοση δεν είναι πρόχειρη· για αλλαγές δημιουργήστε πρόχειρο από τη σελίδα προγράμματος.</p>{% endif %}
+</div>
+<h2>Επιλέξιμοι εργαζόμενοι ({{ cands.eligible|length }})</h2>
+<p class="small muted">Έχουν αποκλειστεί όσοι παραβιάζουν σκληρούς κανόνες. Κατάταξη: κόστος, φόρτος, γνώση σημείου, προτιμήσεις (μικρότερη βαθμολογία = καλύτερο).</p>
+<table><tr><th>Εργαζόμενος</th><th class="num">Βαθμ.</th><th class="num">Κόστος βάρδιας</th><th class="num">Ώρες εβδ. μετά</th><th class="num">Ώρες μήνα μετά</th><th class="num">Ανάπαυση πριν/μετά</th><th>Αιτιολόγηση</th><th></th></tr>
+{% for c in cands.eligible %}<tr><td>{{ c.name }}</td><td class="num">{{ c.score }}</td><td class="num">{{ c.cost_eur|money }}</td><td class="num">{{ c.week_hours_after }}</td><td class="num">{{ c.month_hours_after }}</td>
+<td class="num">{{ c.rest_before_h if c.rest_before_h is not none else '—' }} / {{ c.rest_after_h if c.rest_after_h is not none else '—' }}</td><td class="small">{{ c.reasons|join('; ') }}</td>
+<td>{% if version.status == 'draft' and ctx.can('schedule.write') and not (a and a.locked) %}<form method="post" action="/schedule/slot">{{ ui.csrf() }}<input type="hidden" name="version_id" value="{{ version.id }}"><input type="hidden" name="slot_key" value="{{ slot.key }}"><input type="hidden" name="revision" value="{{ version.revision }}"><input type="hidden" name="employee_id" value="{{ c.employee_id }}"><button name="action" value="assign">Ανάθεση</button></form>{% endif %}</td></tr>{% endfor %}</table>
+<details><summary>Μη επιλέξιμοι ({{ cands.rejected|length }}) και λόγοι</summary><table>
+{% for c in cands.rejected %}<tr><td>{{ c.name }}</td><td class="small">{{ c.reasons|join('; ') }}</td></tr>{% endfor %}</table></details>
+{% endblock %}

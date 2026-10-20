@@ -1,0 +1,45 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}Αποτέλεσμα προγραμματισμού{% endblock %}
+{% block content %}
+<p><a href="/schedule/generate?year={{ period.year }}&month={{ period.month }}">‹ Αυτόματος προγραμματισμός</a></p>
+<h1>Αποτέλεσμα #{{ run.id }} — {{ MONTHS[period.month] }} {{ period.year }}</h1>
+{% set st = rep.stats or {} %}
+<div class="card">
+{% if run.status == 'complete' %}<div class="kpi ok">Πλήρης κάλυψη</div>
+{% elif run.status == 'partial' %}<div class="kpi bad">Μερική κάλυψη {{ st.coverage_pct|num }}%</div>
+{% elif run.status == 'locked_conflict' %}<div class="kpi bad">Διακοπή: κλειδωμένες αναθέσεις παραβιάζουν κανόνες</div>
+{% elif run.status == 'infeasible' %}<div class="kpi bad">Αποδεδειγμένα ανέφικτο</div>
+{% else %}<div class="kpi bad">Δεν βρέθηκε λύση (όριο χρόνου – όχι απόδειξη ανεφικτότητας)</div>{% endif %}
+<ul>{% for msg_ in rep.messages %}<li>{{ msg_ }}</li>{% endfor %}</ul>
+<p class="small">Κατάσταση κάλυψης: <strong>{{ rep.coverage_status }}</strong>{% if rep.proven_max_coverage %} (αποδεδειγμένα μέγιστη){% endif %} ·
+Βελτιστοποίηση ήπιων στόχων: <strong>{{ rep.optimisation_status }}</strong> · Χρόνος: {{ st.seconds }} δευτ.</p>
+{% if st.slots is defined %}<p>Θέσεις: {{ st.slots }} · Ακάλυπτες: <strong>{{ st.uncovered_slots }}</strong> · Ώρες ζήτησης: {{ st.demand_hours|num }} · Ακάλυπτες ώρες: <strong class="{{ 'bad' if st.uncovered_hours else 'ok' }}">{{ st.uncovered_hours|num }}</strong>
+{% if ctx.can('reports.cost') %} · Εκτιμώμενο κόστος προγρ.: {{ st.planned_cost_eur|money }}{% endif %}</p>{% endif %}
+{% if rep.scope %}<p class="small muted">Εύρος: {{ 'σημεία ' ~ rep.scope.sites|join(',') if rep.scope.sites else 'όλα τα σημεία' }} · {{ (rep.scope.dates|length ~ ' ημέρες') if rep.scope.dates else 'όλος ο μήνας' }} · διατηρήθηκαν {{ rep.scope.carried_assignments }} αναθέσεις εκτός εύρους · {{ rep.scope.locked }} κλειδωμένες</p>{% endif %}
+<p class="small muted">Βάρη: {% for k, v in run.params.weights.items() %}{{ k }}={{ v }} {% endfor %}</p>
+{% if version %}<p>Δημιουργήθηκε <span class="pill {{ version.status }}">v{{ version.number }} {{ VERSION_STATUS[version.status] }}</span>
+<a href="/schedule?year={{ period.year }}&month={{ period.month }}&v={{ version.id }}">Πίνακας</a> · <a href="/schedule/versions/{{ version.id }}/diff"><strong>Προεπισκόπηση αλλαγών & έγκριση</strong></a></p>{% endif %}
+</div>
+
+{% if rep.locked_violations %}<h2 class="bad">Κλειδωμένες αναθέσεις με παραβιάσεις</h2>
+<table><tr><th>Κανόνας</th><th>Εργαζόμενος</th><th>Λεπτομέρεια</th><th>Θέσεις</th></tr>
+{% for v in rep.locked_violations %}<tr><td>{{ v.label }}</td><td>{{ v.employee }}</td><td>{{ v.detail }}</td><td class="small">{{ v.slot_keys|join(', ') }}</td></tr>{% endfor %}</table>
+<p>Ξεκλειδώστε ή αντικαταστήστε αυτές τις αναθέσεις και επαναλάβετε. Το σύστημα δεν παραλείπει σιωπηρά κλειδωμένες αναθέσεις.</p>{% endif %}
+
+{% if rep.recommendations %}<h2>Γιατί υπάρχουν κενά & τι θα βοηθούσε</h2>
+<table><tr><th>Αιτία</th><th class="num">Ακάλυπτες ώρες</th><th>Πρόταση</th></tr>
+{% for r in rep.recommendations %}<tr><td>{{ r.label }}</td><td class="num">{{ r.hours|num }}</td><td>{{ r.hint }}</td></tr>{% endfor %}</table>{% endif %}
+
+{% if rep.uncovered %}<h2>Ακάλυπτες θέσεις ({{ rep.uncovered|length }})</h2>
+<table><tr><th>Ημ/νία</th><th>Σημείο</th><th>Θέση</th><th>Α/Α</th><th>Ώρες</th><th class="num">Διάρκεια</th><th>Αιτία</th><th>Εμπόδια (πλήθος εργαζομένων)</th></tr>
+{% for u in rep.uncovered[:300] %}<tr><td>{{ u.date }}</td><td>{{ u.site }}</td><td>{{ u.requirement }}</td><td>{{ u.position }}</td><td class="small">{{ u.start }} → {{ u.end }}</td><td class="num">{{ u.hours|num }}</td>
+<td>{{ u.cause_label }}<br><span class="small muted">κατάλληλοι {{ u.qualified }} · διαθέσιμοι {{ u.available }} · ελεύθεροι {{ u.free }}</span></td>
+<td class="small">{% for k, v in u.blocker_counts.items() %}{{ k }}: {{ v }}<br>{% endfor %}</td></tr>{% endfor %}</table>{% endif %}
+
+{% if version and diff %}<h2>Αλλαγές έναντι δημοσιευμένου {{ ('v' ~ pub.number) if pub else '(κανένα)' }}: {{ diff|length }}</h2>
+<p><a href="/schedule/versions/{{ version.id }}/diff">Αναλυτική προεπισκόπηση & δημοσίευση</a></p>{% endif %}
+
+{% if st.per_employee %}<h2>Κατανομή ανά εργαζόμενο</h2>
+<table><tr><th>Εργαζόμενος</th><th class="num">Βάρδιες</th><th class="num">Ώρες</th><th class="num">Νυχτερινές</th><th class="num">Σ/Κ-αργίες</th>{% if ctx.can('reports.cost') %}<th class="num">Κόστος (εκτ.)</th>{% endif %}</tr>
+{% for name, v in st.per_employee.items()|sort %}<tr><td>{{ name }}</td><td class="num">{{ v.shifts }}</td><td class="num">{{ v.hours|num }}</td><td class="num">{{ v.nights }}</td><td class="num">{{ v.weekends }}</td>
+{% if ctx.can('reports.cost') %}<td class="num">{{ (v.cost_cents/100)|money }}</td>{% endif %}</tr>{% endfor %}</table>{% endif %}
+{% endblock %}

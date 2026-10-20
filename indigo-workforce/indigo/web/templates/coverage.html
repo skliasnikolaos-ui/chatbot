@@ -1,0 +1,32 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}Κάλυψη & συγκρούσεις{% endblock %}
+{% block content %}
+<h1>Κάλυψη, συγκρούσεις & ακάλυπτη ζήτηση</h1>{{ ui.month_nav('/coverage', y, m) }}
+{% set v = cov.version %}
+<div class="card">{% if v %}Έκδοση <span class="pill {{ v.status }}">v{{ v.number }} {{ VERSION_STATUS[v.status] }}</span>{% else %}<span class="muted">Δεν υπάρχει πρόγραμμα· όλη η ζήτηση είναι ακάλυπτη.</span>{% endif %}
+· Κάλυψη <strong>{{ cov.pct|num }}%</strong> · Ζήτηση {{ cov.total_demand_h|num }} ώρες · Ακάλυπτες <strong class="{{ 'bad' if cov.total_uncovered_h else 'ok' }}">{{ cov.total_uncovered_h|num }}</strong> ώρες
+· <a href="/reports/gaps.csv?year={{ y }}&month={{ m }}">Εξαγωγή κενών CSV</a></div>
+
+<h2>Ανά θέση</h2>
+<table><tr><th>Σημείο</th><th>Θέση</th><th class="num">Θέσεις</th><th class="num">Ακάλυπτες</th><th class="num">Ζήτηση ώρες</th><th class="num">Καλυμμένες</th><th class="num">Ακάλυπτες ώρες</th><th class="num">%</th></tr>
+{% for r in cov.rows %}<tr><td>{{ r.site }}</td><td>{{ r.requirement }}</td><td class="num">{{ r.slots }}</td><td class="num">{{ r.uncovered_slots }}</td><td class="num">{{ r.demand_h|num }}</td><td class="num">{{ r.covered_h|num }}</td>
+<td class="num {{ 'bad' if r.uncovered_h }}">{{ r.uncovered_h|num }}</td><td class="num">{{ r.pct|num }}</td></tr>{% endfor %}</table>
+
+<h2>Συγκρούσεις / παραβιάσεις σκληρών κανόνων ({{ cov.violations|length }})</h2>
+{% if cov.violations %}<table><tr><th>Κανόνας</th><th>Εργαζόμενος</th><th>Λεπτομέρεια</th><th>Θέσεις</th></tr>
+{% for x in cov.violations %}<tr><td class="bad">{{ x.label }}</td><td>{{ names.get(x.employee_id, '') }}</td><td>{{ x.detail }}</td><td class="small">{% for k in x.slot_keys %}{% if v and not k.startswith('fixed:') %}<a href="/schedule/slot?v={{ v.id }}&key={{ k }}">{{ k }}</a>{% else %}{{ k }}{% endif %} {% endfor %}</td></tr>{% endfor %}</table>
+<p class="small">Συνήθης αιτία: άδεια/ασθένεια ή λήξη προσόντος καταχωρίστηκε μετά τη δημοσίευση, ή άλλαξε η ζήτηση. Χρησιμοποιήστε <a href="/absences">Απουσίες → αντικατάσταση</a> ή επεξεργασία προχείρου.</p>
+{% else %}<p class="ok">Καμία.</p>{% endif %}
+
+<h2>Ακάλυπτες θέσεις ({{ cov.uncovered|length }})</h2>
+{% if by_date %}<p class="small">Ανά ημέρα: {% for dd, h in by_date %}<span class="pill bad">{{ dd|dm }}: {{ h|num }}ω</span> {% endfor %}</p>{% endif %}
+<table><tr><th>Ημ/νία</th><th>Σημείο</th><th>Θέση</th><th>Α/Α</th><th>Ώρες</th><th class="num">Διάρκεια</th><th>Αιτία</th><th>Τι θα βοηθούσε</th><th></th></tr>
+{% for s in cov.uncovered[:500] %}{% set ex = explanations.get(s.key) %}<tr><td>{{ s.service_date|wd }} {{ s.service_date|dm }}</td><td>{{ cov.context.sites[s.site_id].name }}</td><td>{{ reqs[s.requirement_id].name }}</td><td>{{ s.position }}</td>
+<td class="small">{{ s.start|lt }} → {{ s.end|lt }}</td><td class="num">{{ (s.minutes/60)|num }}</td>
+<td class="small">{% if ex %}{{ ex.cause_label }}<br><span class="muted">{% for k, n in ex.blocker_counts.items() %}{{ k }}: {{ n }}; {% endfor %}</span>{% endif %}</td>
+<td class="small">{{ ex.hint if ex else '' }}{% if ex and ex.free_names %}<br>Ελεύθεροι: {{ ex.free_names|join(', ') }}{% endif %}</td>
+<td>{% if v %}<a href="/schedule/slot?v={{ v.id }}&key={{ s.key }}">Ανάθεση</a>{% endif %}</td></tr>{% endfor %}</table>
+
+<h2>Επάρκεια προσωπικού (ενδεικτικά)</h2>
+<table><tr><th>Σημείο</th><th>Θέση</th><th class="num">Ζήτηση</th><th class="num">Κατάλληλοι</th><th class="num">Χωρητικότητα</th><th></th></tr>
+{% for f in cov.feasibility %}<tr><td>{{ f.site }}</td><td>{{ f.requirement }}</td><td class="num">{{ f.demand_h|num }}</td><td class="num">{{ f.qualified }}</td><td class="num">{{ f.capacity_h|num }}</td><td>{{ '✓' if f.ok else '✗' }}</td></tr>{% endfor %}</table>
+{% endblock %}

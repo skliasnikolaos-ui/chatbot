@@ -1,0 +1,28 @@
+<div class="row">
+<label>Κωδικός*<input name="code" value="{{ e.code if e else '' }}" required maxlength="40"></label>
+<label>Επώνυμο*<input name="last_name" value="{{ e.last_name if e else '' }}" required></label>
+<label>Όνομα*<input name="first_name" value="{{ e.first_name if e else '' }}" required></label>
+<label>Τηλέφωνο<input name="phone" value="{{ e.phone or '' if e else '' }}"></label>
+<label>Email<input name="email" type="email" value="{{ e.email or '' if e else '' }}"></label>
+</div><div class="row">
+<label>Πρόσληψη<input type="date" name="hire_date" value="{{ e.hire_date or '' if e else '' }}"></label>
+<label>Λήξη απασχόλησης<input type="date" name="termination_date" value="{{ e.termination_date or '' if e else '' }}"></label>
+<label>Σύμβαση<select name="contract_type">{% for k, v in [('full_time','Πλήρης'),('part_time','Μερική'),('fixed_term','Ορισμένου χρόνου')] %}<option value="{{ k }}" {% if e and e.contract_type==k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+<label>Συμβατικές ώρες/εβδ.*<input name="weekly_contract_hours" value="{{ e.weekly_contract_hours if e else 40 }}" required></label>
+</div>
+<h3>Όρια χρόνου εργασίας (σκληροί κανόνες)</h3>
+<div class="row">
+<label>Μέγ. ώρες/εβδ.<input name="max_hours_week" value="{{ e.max_hours_week or '' if e else 48 }}"></label>
+<label>Μέγ. ώρες/μήνα<input name="max_hours_month" value="{{ e.max_hours_month or '' if e else '' }}"></label>
+<label>Μέγ. διάρκεια βάρδιας (ώρες)<input name="max_shift_hours" value="{{ e.max_shift_hours or '' if e else 12 }}"></label>
+<label>Ελάχ. ανάπαυση (ώρες)*<input name="min_rest_hours" value="{{ e.min_rest_hours if e else 11 }}" required></label>
+<label>Μέγ. συνεχόμενες ημέρες<input name="max_consecutive_days" value="{{ e.max_consecutive_days or '' if e else 6 }}"></label>
+</div>
+<h3>Προτιμήσεις (ήπιοι στόχοι)</h3>
+<div class="row">
+<label>Νυχτερινές<select name="night_preference">{% for k, v in [('neutral','Ουδέτερο'),('avoid','Αποφυγή'),('prefer','Προτίμηση')] %}<option value="{{ k }}" {% if e and e.night_preference==k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+<label class="inline"><input type="checkbox" name="avoid_weekends" value="1" {% if e and e.avoid_weekends %}checked{% endif %}> Αποφυγή Σαββατοκύριακων</label>
+<label class="inline"><input type="checkbox" name="is_relief" value="1" {% if e and e.is_relief %}checked{% endif %}> Εργαζόμενος αναπλήρωσης (relief)</label>
+<label>Κατάσταση<select name="is_active"><option value="1">Ενεργός</option><option value="0" {% if e and not e.is_active %}selected{% endif %}>Ανενεργός</option></select></label>
+</div>
+<label>Σημειώσεις<textarea name="notes" rows="2">{{ e.notes or '' if e else '' }}</textarea></label>

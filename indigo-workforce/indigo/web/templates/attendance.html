@@ -1,0 +1,37 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}Παρουσίες{% endblock %}
+{% block content %}
+<h1>Παρουσίες & εγκεκριμένες ώρες</h1>
+<p class="small muted">Τρία ξεχωριστά αρχεία: <strong>προγραμματισμένη</strong> εργασία (δημοσιευμένο πρόγραμμα), <strong>πραγματική</strong> παρουσία, <strong>εγκεκριμένες</strong> πληρωτέες ώρες.
+Τίποτα δεν αντιγράφεται σιωπηρά· οι διορθώσεις δημιουργούν νέα εγγραφή με αιτιολογία και διατηρούν την παλιά.</p>
+<form class="row" method="get"><label>Από<input type="date" name="date_from" value="{{ d0 }}"></label><label>Έως<input type="date" name="date_to" value="{{ d1 }}"></label>
+<label class="inline"><input type="checkbox" name="only" value="issues" {% if only %}checked{% endif %}> Μόνο εκκρεμότητες/αποκλίσεις</label><button class="secondary">Εμφάνιση</button></form>
+{% set hid %}<input type="hidden" name="date_from" value="{{ d0 }}"><input type="hidden" name="date_to" value="{{ d1 }}"><input type="hidden" name="only" value="{{ only }}">{% endset %}
+<table><tr><th>Ημ/νία</th><th>Εργαζόμενος</th><th>Προγραμματισμένο</th><th>Πραγματική παρουσία</th><th>Εγκεκριμένες ώρες</th><th>Επισημάνσεις</th></tr>
+{% for r in rows %}<tr><td>{{ r.date|wd }} {{ r.date|dm }}</td><td>{{ r.employee.full_name }}</td>
+<td class="small">{% if r.plan %}{{ r.plan.site.name }}<br>{{ r.plan.start_utc|lt('%H:%M') }}–{{ r.plan.end_utc|lt('%H:%M') }}{% else %}—{% endif %}</td>
+<td class="small">{% if r.att %}{{ r.att.clock_in|lt('%d/%m %H:%M') }} – {{ r.att.clock_out|lt('%d/%m %H:%M') }}{% if r.att.supersedes_id %} <a href="/attendance/history/attendance/{{ r.att.id }}">(διορθωμένη)</a>{% endif %}
+  {% if ctx.can('attendance.write') %}<details><summary>Διόρθωση</summary><form method="post" action="/attendance/record">{{ ui.csrf() }}{{ hid }}<input type="hidden" name="employee_id" value="{{ r.att.employee_id }}"><input type="hidden" name="supersedes_id" value="{{ r.att.id }}">
+  <input type="datetime-local" name="clock_in" value="{{ r.att.clock_in|lt('%Y-%m-%dT%H:%M') }}" required><input type="datetime-local" name="clock_out" value="{{ r.att.clock_out|lt('%Y-%m-%dT%H:%M') }}" required>
+  <input name="reason" placeholder="Αιτιολογία*" required><button class="secondary">Διόρθωση</button></form></details>{% endif %}
+{% elif r.plan and ctx.can('attendance.write') %}<form method="post" action="/attendance/record">{{ ui.csrf() }}{{ hid }}<input type="hidden" name="employee_id" value="{{ r.plan.employee_id }}"><input type="hidden" name="assignment_id" value="{{ r.plan.id }}">
+  <input type="datetime-local" name="clock_in" required><input type="datetime-local" name="clock_out" required><button class="secondary">Καταχώριση</button></form>
+  <span class="muted">Οι ώρες συμπληρώνονται από τον χρήστη· δεν αντιγράφονται από το πρόγραμμα.</span>{% else %}—{% endif %}</td>
+<td class="small">{% if r.app %}{{ r.app.start_utc|lt('%d/%m %H:%M') }} – {{ r.app.end_utc|lt('%d/%m %H:%M') }} <span class="pill">{{ {'attendance':'από παρουσία','plan':'βάσει προγράμματος','manual':'χειροκίνητη'}[r.app.basis] }}</span>
+  {% if r.app.supersedes_id %}<a href="/attendance/history/approved/{{ r.app.id }}">(διορθωμένη)</a>{% endif %}
+  {% if ctx.can('attendance.approve') %}<details><summary>Διόρθωση / ακύρωση</summary>
+  <form method="post" action="/attendance/approve">{{ ui.csrf() }}{{ hid }}<input type="hidden" name="basis" value="manual"><input type="hidden" name="employee_id" value="{{ r.app.employee_id }}"><input type="hidden" name="site_id" value="{{ r.app.site_id or '' }}"><input type="hidden" name="supersedes_id" value="{{ r.app.id }}">
+  <input type="datetime-local" name="start" value="{{ r.app.start_utc|lt('%Y-%m-%dT%H:%M') }}" required><input type="datetime-local" name="end" value="{{ r.app.end_utc|lt('%Y-%m-%dT%H:%M') }}" required><input name="reason" placeholder="Αιτιολογία*" required><button class="secondary">Διόρθωση</button></form>
+  <form method="post" action="/attendance/void">{{ ui.csrf() }}{{ hid }}<input type="hidden" name="approved_id" value="{{ r.app.id }}"><input name="reason" placeholder="Αιτιολογία*" required><button class="danger">Ακύρωση έγκρισης</button></form></details>{% endif %}
+{% elif ctx.can('attendance.approve') %}
+  {% if r.att %}<form method="post" action="/attendance/approve" class="inline">{{ ui.csrf() }}{{ hid }}<input type="hidden" name="basis" value="attendance"><input type="hidden" name="attendance_id" value="{{ r.att.id }}"><button>Έγκριση πραγματικών</button></form>{% endif %}
+  {% if r.plan %}<form method="post" action="/attendance/approve" class="inline">{{ ui.csrf() }}{{ hid }}<input type="hidden" name="basis" value="plan"><input type="hidden" name="assignment_id" value="{{ r.plan.id }}"><input name="reason" placeholder="Αιτιολογία (προαιρ.)"><button class="secondary">Έγκριση βάσει προγράμματος</button></form>{% endif %}
+{% else %}—{% endif %}</td>
+<td class="small">{% for f in r.flags %}<span class="pill {{ 'bad' if not f.startswith('Εγκρίθηκε') }}">{{ f }}</span> {% endfor %}</td></tr>{% else %}<tr><td colspan="6" class="muted">Καμία εγγραφή.</td></tr>{% endfor %}</table>
+
+{% if ctx.can('attendance.write') %}<h2>Παρουσία χωρίς προγραμματισμό</h2>
+<form method="post" action="/attendance/record" class="card row">{{ ui.csrf() }}{{ hid }}
+<label>Εργαζόμενος<select name="employee_id">{% for e in emps %}<option value="{{ e.id }}">{{ e.full_name }}</option>{% endfor %}</select></label>
+<label>Σημείο<select name="site_id"><option value="">—</option>{% for s in sites %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></label>
+<label>Προσέλευση<input type="datetime-local" name="clock_in" required></label><label>Αποχώρηση<input type="datetime-local" name="clock_out" required></label>
+<label>Σημείωση<input name="reason"></label><button>Καταχώριση</button></form>{% endif %}
+{% endblock %}

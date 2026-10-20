@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}Εργαζόμενοι{% endblock %}
+{% block content %}
+<h1>Εργαζόμενοι</h1>
+<form class="row" method="get"><label>Αναζήτηση<input name="q" value="{{ q }}"></label>
+<label>Εμφάνιση<select name="show"><option value="active" {% if show=='active' %}selected{% endif %}>Ενεργοί</option><option value="all" {% if show=='all' %}selected{% endif %}>Όλοι</option></select></label>
+<button class="secondary">Φίλτρο</button>
+{% if ctx.can('employees.write') %}<a href="/employees/new">+ Νέος εργαζόμενος</a>{% endif %}
+{% if ctx.can('import.run') %}<a href="/employees/import">Εισαγωγή CSV</a>{% endif %}</form>
+<table><tr><th>Κωδ.</th><th>Ονοματεπώνυμο</th><th>Σύμβαση</th><th class="num">Ώρες/εβδ.</th><th class="num">Μέγ./εβδ.</th><th>Προσόντα (λήξη)</th><th>Αναπλ.</th><th>Κατάσταση</th></tr>
+{% for e in emps %}<tr><td>{{ e.code }}</td><td><a href="/employees/{{ e.id }}">{{ e.full_name }}</a></td>
+<td>{{ {'full_time':'Πλήρης','part_time':'Μερική','fixed_term':'Ορισμένου'}[e.contract_type] }}</td>
+<td class="num">{{ e.weekly_contract_hours|num }}</td><td class="num">{{ e.max_hours_week|num if e.max_hours_week else '—' }}</td>
+<td class="small">{% for q in quals.get(e.id, []) %}{{ q.qualification.code }}{% if q.valid_until %} ({{ q.valid_until|dmy }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+<td>{{ '✓' if e.is_relief else '' }}</td><td>{{ 'Ενεργός' if e.is_active else 'Ανενεργός' }}</td></tr>{% endfor %}
+</table>
+<p class="small muted">{{ emps|length }} εργαζόμενοι</p>
+{% endblock %}

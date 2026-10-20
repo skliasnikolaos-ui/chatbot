@@ -1,0 +1,17 @@
+<div class="row">
+<label>Ονομασία θέσης*<input name="name" value="{{ r.name if r else '' }}" required></label>
+<label>Έναρξη*<input type="time" name="start_time" value="{{ r.start_time.strftime('%H:%M') if r else '08:00' }}" required></label>
+<label>Λήξη*<input type="time" name="end_time" value="{{ r.end_time.strftime('%H:%M') if r else '16:00' }}" required></label>
+<label>Διάσπαση σε βάρδιες (ώρες)<input name="shift_hours" value="{{ r.shift_hours or '' if r else '' }}" placeholder="π.χ. 8"></label>
+<label>Ταυτόχρονα άτομα*<input type="number" name="headcount" min="1" max="50" value="{{ r.headcount if r else 1 }}" required></label>
+<label>Χρέωση €/ώρα<input name="billing_rate_hourly" value="{{ r.billing_rate_hourly or '' if r else '' }}"></label>
+</div>
+<div>Ημέρες: {{ ui.weekday_boxes('weekdays[]', r.weekday_set if r else [0,1,2,3,4,5,6]) }}</div>
+<div class="row">
+<label>Αργίες<select name="holiday_mode">{% for k, v in HOLIDAY_MODES.items() %}<option value="{{ k }}" {% if r and r.holiday_mode == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+<label>Ισχύει από<input type="date" name="valid_from" value="{{ r.valid_from or '' if r else '' }}"></label>
+<label>Έως<input type="date" name="valid_to" value="{{ r.valid_to or '' if r else '' }}"></label>
+<label>Κατάσταση<select name="is_active"><option value="1">Ενεργή</option><option value="0" {% if r and not r.is_active %}selected{% endif %}>Ανενεργή</option></select></label>
+</div>
+<div>Απαιτούμενα προσόντα: {% for q in quals.values() %}<label class="inline"><input type="checkbox" name="qualification_ids[]" value="{{ q.id }}" {% if r and q.id in r.qualification_ids %}checked{% endif %}>{{ q.code }}</label>{% endfor %}</div>
+<label>Σημειώσεις<input name="notes" value="{{ r.notes or '' if r else '' }}"></label>

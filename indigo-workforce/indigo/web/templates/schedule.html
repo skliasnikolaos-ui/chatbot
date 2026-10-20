@@ -1,0 +1,40 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}Πρόγραμμα {{ MONTHS[m] }} {{ y }}{% endblock %}
+{% block content %}
+<h1>Μηνιαίο πρόγραμμα</h1>
+{{ ui.month_nav('/schedule', y, m, '&view=' ~ view) }}
+<div class="row">
+  <span>Έκδοση:
+  {% for v in versions %}<a href="/schedule?year={{ y }}&month={{ m }}&v={{ v.id }}&view={{ view }}" class="pill {{ v.status }}" {% if version and v.id == version.id %}style="outline:2px solid #2b3d8f"{% endif %}>v{{ v.number }} {{ VERSION_STATUS[v.status] }}</a> {% else %}<span class="muted">καμία</span>{% endfor %}</span>
+  <a href="/schedule?year={{ y }}&month={{ m }}{% if version %}&v={{ version.id }}{% endif %}&view={{ 'employees' if view == 'sites' else 'sites' }}">Προβολή ανά {{ 'εργαζόμενο' if view == 'sites' else 'σημείο' }}</a>
+  {% if ctx.can('schedule.write') %}<a href="/schedule/generate?year={{ y }}&month={{ m }}">Αυτόματη δημιουργία</a>
+    {% if not version or version.status != 'draft' %}<form method="post" action="/schedule/draft" class="inline">{{ ui.csrf() }}<input type="hidden" name="year" value="{{ y }}"><input type="hidden" name="month" value="{{ m }}"><button class="secondary">Πρόχειρο για χειροκίνητη επεξεργασία</button></form>{% endif %}{% endif %}
+  {% if version %}<a href="/schedule/versions/{{ version.id }}/diff">Αλλαγές / δημοσίευση</a> · <a href="/coverage?year={{ y }}&month={{ m }}&v={{ version.id }}">Κενά</a> · <a href="/schedule/versions/{{ version.id }}/export.csv">CSV</a>{% endif %}
+</div>
+{% if version %}
+<p>Κατάσταση: <span class="pill {{ version.status }}">{{ VERSION_STATUS[version.status] }}</span> · Ακάλυπτες θέσεις: <strong class="{{ 'bad' if uncovered_count else 'ok' }}">{{ uncovered_count }}</strong>
+{% if check.violations %} · <span class="pill bad">{{ check.violations|length }} παραβιάσεις σκληρών κανόνων</span>{% endif %}
+{% if version.status == 'draft' %}<span class="small muted"> · Κλικ σε κελί για επεξεργασία/κλείδωμα</span>{% endif %}</p>
+{% if check.violations %}<details class="card"><summary class="bad">Παραβιάσεις ({{ check.violations|length }})</summary><ul class="small">
+{% for v in check.violations[:100] %}<li>{{ v.label }} — {{ emps[v.employee_id].full_name if v.employee_id in emps else '' }} {{ v.detail }} <span class="muted">{{ v.slot_keys|join(', ') }}</span></li>{% endfor %}</ul></details>{% endif %}
+{% else %}<p class="muted">Δεν υπάρχει πρόγραμμα για τον μήνα. Η ζήτηση εμφανίζεται ως ακάλυπτη.</p>{% endif %}
+
+<div class="board"><table>
+<thead><tr><th class="sticky">{{ 'Σημείο / θέση / βάρδια' if view == 'sites' else 'Εργαζόμενος' }}</th>
+{% for d in days %}<th class="{{ 'we' if d.weekday() >= 5 }} {{ 'hol' if d in holidays }}">{{ d.day }}<br><span class="small">{{ d|wd }}</span></th>{% endfor %}</tr></thead>
+<tbody>
+{% if view == 'sites' %}
+{% for rk, cells in rows %}<tr><td class="sticky small"><strong>{{ rk[0] }}</strong><br>{{ rk[1] }} · β{{ rk[2] }} · #{{ rk[3] }}</td>
+{% for d in days %}{% set sl = cells.get(d) %}
+{% if sl %}{% set a = assigns.get(sl.key) %}
+<td class="small {{ 'unc' if not a }} {{ 'viol' if sl.key in bad_keys }} {{ 'we' if d.weekday() >= 5 }}" title="{{ sl.start|lt }}–{{ sl.end|lt }}{% if sl.key in bad_keys %} · {{ bad_keys[sl.key]|join(', ') }}{% endif %}">
+<a href="{{ '/schedule/slot?v=' ~ version.id ~ '&key=' ~ sl.key if version else '#' }}">{{ sl.start|lt('%H') }}-{{ sl.end|lt('%H') }}<br>
+{% if a %}{{ a.employee.last_name[:9] }}{% if a.locked %} 🔒{% endif %}{% else %}<strong class="bad">—</strong>{% endif %}</a></td>
+{% else %}<td class="{{ 'we' if d.weekday() >= 5 }}"></td>{% endif %}{% endfor %}</tr>{% endfor %}
+{% else %}
+{% for eid, byday in emp_rows.items()|sort(attribute='0') %}{% set e = emps[eid] %}<tr><td class="sticky small"><a href="/employees/{{ e.id }}">{{ e.full_name }}</a>
+{% set tot = namespace(min=0) %}{% for dd, lst in byday.items() %}{% for a in lst %}{% set tot.min = tot.min + ((a.end_utc - a.start_utc).total_seconds() // 60) %}{% endfor %}{% endfor %}
+<br><span class="muted">{{ (tot.min/60)|num }} ώρες</span></td>
+{% for d in days %}<td class="small {{ 'we' if d.weekday() >= 5 }}">{% for a in byday.get(d, []) %}<a href="/schedule/slot?v={{ version.id }}&key={{ a.slot_key }}" class="{{ 'bad' if a.slot_key in bad_keys }}">{{ a.start_utc|lt('%H') }}-{{ a.end_utc|lt('%H') }} {{ a.site.name[:8] }}{% if a.locked %}🔒{% endif %}</a>{% endfor %}</td>{% endfor %}</tr>{% endfor %}
+{% endif %}
+</tbody></table></div>
+{% endblock %}

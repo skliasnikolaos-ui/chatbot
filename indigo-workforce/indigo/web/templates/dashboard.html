@@ -1,0 +1,43 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}Πίνακας{% endblock %}
+{% block content %}
+<h1>Πίνακας ελέγχου</h1>
+<div class="grid">
+{% for c in cov %}
+  <div class="card">
+    <h3>Κάλυψη {{ MONTHS[c.month] }} {{ c.year }}</h3>
+    {% if c.c.version %}
+      <div class="kpi {{ 'ok' if c.c.pct >= 100 else 'bad' }}">{{ c.c.pct|num }}%</div>
+      <div>Ακάλυπτες ώρες: <strong>{{ c.c.total_uncovered_h|num }}</strong> από {{ c.c.total_demand_h|num }}</div>
+      <div class="small">Έκδοση v{{ c.c.version.number }} <span class="pill {{ c.c.version.status }}">{{ c.c.version.status }}</span>
+        {% if c.c.violations %}<span class="pill bad">{{ c.c.violations|length }} παραβιάσεις</span>{% endif %}</div>
+      {% if c.draft %}<div class="small warn">Υπάρχει πρόχειρο v{{ c.draft.number }} προς έγκριση — <a href="/schedule/versions/{{ c.draft.id }}/diff">έλεγχος & δημοσίευση</a></div>{% endif %}
+    {% else %}
+      <div class="kpi bad">—</div><div>Δεν υπάρχει πρόγραμμα. Ζήτηση: {{ c.c.total_demand_h|num }} ώρες.</div>
+      {% if ctx.can('schedule.write') %}<a href="/schedule/generate?year={{ c.year }}&month={{ c.month }}">Αυτόματη δημιουργία</a>{% endif %}
+    {% endif %}
+    <div class="small"><a href="/coverage?year={{ c.year }}&month={{ c.month }}">Κενά & συγκρούσεις</a> · <a href="/schedule?year={{ c.year }}&month={{ c.month }}">Πρόγραμμα</a></div>
+  </div>
+{% endfor %}
+  <div class="card"><h3>Εκκρεμότητες</h3>
+    <ul>
+      <li><a href="/absences?status=requested">{{ pending_abs|length }} αιτήματα απουσίας</a></li>
+      <li><a href="/absences">{{ needs_replacement|length }} δημοσιευμένες βάρδιες εργαζομένων σε απουσία</a> (χρειάζονται αντικατάσταση)</li>
+      <li><a href="/attendance?only=issues">{{ pending_hours }} βάρδιες 14 ημερών χωρίς έγκριση ωρών</a></li>
+      <li><a href="/attendance?only=issues">{{ discrepancies }} αποκλίσεις παρουσίας/προγράμματος</a></li>
+      <li>{{ expiring|length }} άδειες/προσόντα λήγουν ή έληξαν (30 ημ.)</li>
+      {% if ctx.can('payroll.read') %}<li>{{ open_payroll|length }} ανοιχτές μισθολογικές περίοδοι</li>{% endif %}
+    </ul>
+  </div>
+</div>
+{% if needs_replacement %}
+<h2>Βάρδιες που χρειάζονται αντικατάσταση</h2>
+<table><tr><th>Ημ/νία</th><th>Εργαζόμενος</th><th>Σημείο</th><th>Ώρες</th><th></th></tr>
+{% for a, asg in needs_replacement[:20] %}<tr><td>{{ asg.service_date|dmy }}</td><td>{{ emp_names[asg.employee_id] }}</td><td>{{ asg.site.name }}</td>
+<td>{{ asg.start_utc|lt('%H:%M') }}–{{ asg.end_utc|lt('%H:%M') }}</td><td><a href="/absences/{{ a.id }}/assignments/{{ asg.id }}">Υποψήφιοι</a></td></tr>{% endfor %}
+</table>{% endif %}
+{% if expiring %}
+<h2>Λήξεις αδειών/προσόντων</h2>
+<table><tr><th>Εργαζόμενος</th><th>Προσόν</th><th>Λήξη</th></tr>
+{% for q in expiring %}<tr><td><a href="/employees/{{ q.employee_id }}">{{ emp_names[q.employee_id] }}</a></td><td>{{ q.qualification.name }}</td>
+<td class="{{ 'bad' if q.valid_until < today else 'warn' }}">{{ q.valid_until|dmy }}</td></tr>{% endfor %}</table>{% endif %}
+{% endblock %}

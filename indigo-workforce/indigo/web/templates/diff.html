@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}Αλλαγές v{{ v.number }}{% endblock %}
+{% block content %}
+{% set p = v.period %}
+<p><a href="/schedule?year={{ p.year }}&month={{ p.month }}&v={{ v.id }}">‹ Πρόγραμμα</a></p>
+<h1>v{{ v.number }} <span class="pill {{ v.status }}">{{ VERSION_STATUS[v.status] }}</span> — {{ MONTHS[p.month] }} {{ p.year }}</h1>
+<p class="small">{{ v.note or '' }} · δημιουργία {{ v.created_at|lt('%d/%m/%Y %H:%M') }}{% if v.published_at %} · δημοσίευση {{ v.published_at|lt('%d/%m/%Y %H:%M') }}{% endif %}</p>
+<div class="card">
+<p>Παραβιάσεις σκληρών κανόνων: <strong class="{{ 'bad' if check.violations else 'ok' }}">{{ check.violations|length }}</strong> · Ακάλυπτες θέσεις: <strong class="{{ 'bad' if check.uncovered else 'ok' }}">{{ check.uncovered|length }}</strong>
+({{ (check.uncovered|sum(attribute='minutes') / 60)|num }} ώρες)</p>
+{% if check.violations %}<ul class="small bad">{% for x in check.violations[:50] %}<li>{{ x.label }} {{ x.detail }} — {{ x.slot_keys|join(', ') }}</li>{% endfor %}</ul>{% endif %}
+{% if v.status == 'draft' and ctx.can('schedule.publish') %}
+<form method="post" action="/schedule/versions/{{ v.id }}/publish" class="inline">{{ ui.csrf() }}<input type="hidden" name="revision" value="{{ v.revision }}">
+{% if check.uncovered %}<label class="inline"><input type="checkbox" name="accept_gaps" value="1" required> Αποδέχομαι δημοσίευση με {{ check.uncovered|length }} ακάλυπτες θέσεις</label>{% endif %}
+<button {% if check.violations %}disabled title="Διορθώστε πρώτα τις παραβιάσεις"{% endif %}>Έγκριση & δημοσίευση</button></form>
+<form method="post" action="/schedule/versions/{{ v.id }}/discard" class="inline">{{ ui.csrf() }}<input type="hidden" name="revision" value="{{ v.revision }}"><button class="danger">Απόρριψη προχείρου</button></form>
+{% endif %}
+</div>
+<h2>Αλλαγές έναντι {{ ('v' ~ against.number ~ ' (' ~ VERSION_STATUS[against.status] ~ ')') if against else 'κενού προγράμματος' }}: {{ diff|length }}</h2>
+<table><tr><th>Ημ/νία</th><th>Σημείο</th><th>Θέση</th><th>Ώρες</th><th>Πριν</th><th>Μετά</th><th>Τύπος</th></tr>
+{% for d in diff[:1000] %}<tr><td>{{ d.date|dmy }}</td><td>{{ d.site }}</td><td>{{ d.requirement }}</td><td>{{ d.time }}</td><td>{{ d.before or '—' }}</td><td><strong>{{ d.after or '—' }}</strong></td>
+<td>{{ {'added':'Νέα','removed':'Αφαίρεση','changed':'Αλλαγή'}[d.kind] }}</td></tr>{% endfor %}</table>
+{% if diff|length > 1000 %}<p class="muted">Εμφανίζονται οι πρώτες 1000.</p>{% endif %}
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}Πελάτες & σημεία{% endblock %}
+{% block content %}
+<h1>Πελάτες, συμβάσεις & σημεία</h1>
+{% set w = ctx.can('sites.write') %}
+{% if ctx.can('import.run') %}<p><a href="/sites/import">Εισαγωγή σημείων & απαιτήσεων από CSV</a></p>{% endif %}
+{% for c in clients %}
+<div class="card"><h2>{{ c.name }} <span class="small muted">{{ c.vat_number or '' }} {{ c.contact or '' }}</span></h2>
+<h3>Συμβάσεις</h3>
+<table><tr><th>Αρ.</th><th>Από</th><th>Έως</th><th></th></tr>
+{% for k in contracts if k.client_id == c.id %}<tr><td>{{ k.reference }}</td>
+<td><input type="date" name="start_date" value="{{ k.start_date }}" form="k{{ k.id }}" {% if not w %}disabled{% endif %}></td>
+<td><input type="date" name="end_date" value="{{ k.end_date or '' }}" form="k{{ k.id }}" {% if not w %}disabled{% endif %}></td>
+<td>{% if w %}<form method="post" action="/contracts/{{ k.id }}" id="k{{ k.id }}">{{ ui.csrf() }}<button class="secondary">Αποθήκευση</button></form>{% endif %}</td></tr>{% endfor %}</table>
+{% if w %}<form method="post" action="/clients/{{ c.id }}/contracts" class="row">{{ ui.csrf() }}<label>Αρ. σύμβασης<input name="reference" required></label>
+<label>Έναρξη<input type="date" name="start_date" required></label><label>Λήξη<input type="date" name="end_date"></label><button>+ Σύμβαση</button></form>{% endif %}
+<h3>Σημεία</h3>
+<table><tr><th>Σημείο</th><th>Σύμβαση</th><th>Απαιτήσεις κάλυψης</th><th>Κατάσταση</th></tr>
+{% for s in sites if s.client_id == c.id %}<tr><td><a href="/sites/{{ s.id }}">{{ s.name }}</a>{% if s.requires_explicit_eligibility %} <span class="pill">μόνο εγκεκριμένοι</span>{% endif %}</td>
+<td>{{ s.contract.reference if s.contract else '—' }}</td><td>{{ reqs|selectattr('site_id', 'equalto', s.id)|list|length }}</td><td>{{ 'Ενεργό' if s.is_active else 'Ανενεργό' }}</td></tr>{% endfor %}</table>
+{% if w %}<form method="post" action="/sites" class="row">{{ ui.csrf() }}<input type="hidden" name="client_id" value="{{ c.id }}">
+<label>Νέο σημείο<input name="name" required></label><label>Διεύθυνση<input name="address"></label>
+<label>Σύμβαση<select name="contract_id"><option value="">—</option>{% for k in contracts if k.client_id == c.id %}<option value="{{ k.id }}">{{ k.reference }}</option>{% endfor %}</select></label>
+<label class="inline"><input type="checkbox" name="requires_explicit_eligibility" value="1"> Μόνο εγκεκριμένοι εργαζόμενοι</label><button>+ Σημείο</button></form>{% endif %}
+</div>
+{% endfor %}
+{% if w %}<form method="post" action="/clients" class="card row">{{ ui.csrf() }}<label>Νέος πελάτης<input name="name" required></label>
+<label>ΑΦΜ<input name="vat_number" maxlength="20"></label><label>Επαφή<input name="contact"></label><button>+ Πελάτης</button></form>{% endif %}
+{% endblock %}

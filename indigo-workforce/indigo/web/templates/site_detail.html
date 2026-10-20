@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}{{ site.name }}{% endblock %}
+{% block content %}
+<h1>{{ site.name }} <span class="small muted">{{ site.client.name }}</span></h1>
+{% set w = ctx.can('sites.write') %}
+<details class="card"><summary>Στοιχεία σημείου</summary>
+<form method="post" action="/sites/{{ site.id }}">{{ ui.csrf() }}<div class="row">
+<label>Ονομασία<input name="name" value="{{ site.name }}" required></label><label>Διεύθυνση<input name="address" value="{{ site.address or '' }}"></label>
+<label>Σύμβαση<select name="contract_id"><option value="">—</option>{% for k in contracts %}<option value="{{ k.id }}" {% if site.contract_id == k.id %}selected{% endif %}>{{ k.reference }} ({{ k.start_date|dmy }}–{{ k.end_date|dmy if k.end_date else '…' }})</option>{% endfor %}</select></label>
+<label>Κατάσταση<select name="is_active"><option value="1">Ενεργό</option><option value="0" {% if not site.is_active %}selected{% endif %}>Ανενεργό</option></select></label></div>
+<label class="inline"><input type="checkbox" name="requires_explicit_eligibility" value="1" {% if site.requires_explicit_eligibility %}checked{% endif %}> Μόνο ρητά εγκεκριμένοι εργαζόμενοι</label>
+<label>Περιορισμοί σημείου<textarea name="restrictions" rows="2">{{ site.restrictions or '' }}</textarea></label>
+{% if w %}<button>Αποθήκευση</button>{% endif %}</form></details>
+{% if site.contract %}<p class="small">Η ζήτηση δημιουργείται μόνο εντός της σύμβασης {{ site.contract.reference }}: {{ site.contract.start_date|dmy }} – {{ site.contract.end_date|dmy if site.contract.end_date else 'αορίστου' }}.</p>{% endif %}
+
+<h2>Απαιτήσεις κάλυψης</h2>
+<p class="small muted">Η ζήτηση ορίζεται ανεξάρτητα από τις αναθέσεις. Λήξη ≤ έναρξη σημαίνει ότι η θέση συνεχίζει την επόμενη ημέρα (ίδιες ώρες = 24ωρο). Η διάσπαση σε βάρδιες γίνεται σε ώρες ρολογιού (Europe/Athens)· η πραγματική διάρκεια λαμβάνει υπόψη τη θερινή ώρα.</p>
+{% for r in reqs %}
+<details class="card" {% if not r.is_active %}style="opacity:.6"{% endif %}><summary><strong>{{ r.name }}</strong> · {{ r.start_time.strftime('%H:%M') }}–{{ r.end_time.strftime('%H:%M') }}
+{% if r.shift_hours %}σε βάρδιες {{ r.shift_hours|num(0) }}ω{% endif %} · {{ r.headcount }} άτομα ·
+{% for x in r.weekday_set|sort %}{{ WEEKDAYS[x] }} {% endfor %}· {% for q in r.qualification_ids %}{{ quals[q].code if q in quals else q }} {% endfor %}{% if not r.is_active %}(ανενεργή){% endif %}</summary>
+<form method="post" action="/requirements/{{ r.id }}">{{ ui.csrf() }}{% include "_req_fields.html" %}{% if w %}<button>Αποθήκευση</button>{% endif %}</form></details>
+{% endfor %}
+{% if w %}<details class="card" open><summary>Νέα απαίτηση κάλυψης</summary>
+<form method="post" action="/sites/{{ site.id }}/requirements">{{ ui.csrf() }}{% with r=None %}{% include "_req_fields.html" %}{% endwith %}<button>Προσθήκη</button></form></details>{% endif %}
+
+<h2>Προεπισκόπηση βαρδιών επόμενων 7 ημερών</h2>
+<table><tr><th>Ημ/νία</th><th>Θέση</th><th>Α/Α</th><th>Έναρξη</th><th>Λήξη</th><th class="num">Ώρες</th><th class="num">Νυχτ. ώρες</th></tr>
+{% for s in preview %}<tr><td>{{ s.service_date|wd }} {{ s.service_date|dm }}</td><td>{{ reqs|selectattr('id','equalto',s.requirement_id)|map(attribute='name')|first }}</td><td>{{ s.position }}</td>
+<td>{{ s.start|lt }}</td><td>{{ s.end|lt }}</td><td class="num">{{ (s.minutes/60)|num }}</td><td class="num">{{ (s.night_minutes/60)|num }}</td></tr>{% else %}<tr><td colspan="7" class="muted">Καμία βάρδια (ελέγξτε ημέρες, ισχύ και σύμβαση)</td></tr>{% endfor %}</table>
+{% endblock %}

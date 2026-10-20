@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% import "_m.html" as ui with context %}{% block title %}Ιστορικό ενεργειών{% endblock %}
+{% block content %}
+<h1>Ιστορικό ενεργειών (audit)</h1>
+<form class="row" method="get"><label>Ενέργεια (πρόθεμα)<input name="action" value="{{ action }}" placeholder="π.χ. schedule."></label><button class="secondary">Φίλτρο</button></form>
+<table><tr><th>Χρόνος</th><th>Χρήστης</th><th>Ενέργεια</th><th>Οντότητα</th><th>Λεπτομέρειες</th></tr>
+{% for r in rows %}<tr><td class="small">{{ r.created_at|lt('%d/%m/%Y %H:%M:%S') }}</td><td>{{ users.get(r.user_id, '—') }}</td><td>{{ r.action }}</td>
+<td>{{ r.entity_type }} {{ r.entity_id or '' }}</td><td class="small">{{ json.dumps(r.details, ensure_ascii=False) }}</td></tr>{% endfor %}</table>
+<p>{% if page > 1 %}<a href="?page={{ page - 1 }}&action={{ action }}">‹ Νεότερα</a>{% endif %} {% if rows|length == 100 %}<a href="?page={{ page + 1 }}&action={{ action }}">Παλαιότερα ›</a>{% endif %}</p>
+{% endblock %}
