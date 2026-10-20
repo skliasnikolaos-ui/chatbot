@@ -1,0 +1,9 @@
+# Pinned runtime dependencies for INDIGO WORKFORCE
+fastapi==0.155.0
+starlette==1.9.0
+uvicorn==0.54.0
+SQLAlchemy==2.1.5
+Jinja2==3.1.6
+python-multipart==0.0.32
+argon2-cffi==25.1.0
+ortools==9.14.6206
