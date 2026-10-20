@@ -1,0 +1,5 @@
+var/
+tests/
+.env
+__pycache__/
+*.sqlite3

@@ -55,10 +55,17 @@ class Result:
     locked_violations: list[rules.Violation] = field(default_factory=list)
     stats: dict = field(default_factory=dict)
     messages: list[str] = field(default_factory=list)
+    hint: dict[str, int] = field(default_factory=dict)
 
     @property
     def proven_max_coverage(self) -> bool:
         return self.coverage_status == "OPTIMAL"
+
+
+class _StopAtZero(cp_model.CpSolverSolutionCallback):
+    def on_solution_callback(self) -> None:
+        if self.ObjectiveValue() == 0:
+            self.StopSearch()
 
 
 def _eligible_pairs(p: Problem) -> tuple[dict[tuple[int, str], bool], dict[tuple[int, str], list]]:
@@ -81,6 +88,86 @@ def _eligible_pairs(p: Problem) -> tuple[dict[tuple[int, str], bool], dict[tuple
             if bl:
                 reasons[(emp.id, s.key)] = bl
     return elig, reasons
+
+
+def greedy_hint(p: Problem, elig: dict[tuple[int, str], bool]) -> dict[str, int]:
+    """Best of a few fast greedy constructions that respect every hard rule; used only as a CP-SAT hint."""
+    n_elig: dict[str, int] = defaultdict(int)
+    for (e, k), ok in elig.items():
+        n_elig[k] += ok
+    orders = [
+        lambda s: (s.start, s.key),                                  # chronological
+        lambda s: (n_elig[s.key], s.start, s.key),                   # most constrained first
+        lambda s: (n_elig[s.key] // 3, -s.minutes, s.start, s.key),  # constrained, long shifts first
+    ]
+    best: dict[str, int] = {}
+    best_cov = -1
+    for order in orders:
+        h = _greedy(p, elig, order)
+        cov = sum(s.minutes for s in p.slots if s.key in h)
+        if cov > best_cov:
+            best, best_cov = h, cov
+    return best
+
+
+def _greedy(p: Problem, elig: dict[tuple[int, str], bool], order) -> dict[str, int]:
+    """Locked assignments first; then each slot (in `order`) goes to the eligible employee with the
+    lowest share of their contract hours so far (previous holder preferred)."""
+    emps = {e.id: e for e in p.employees}
+    items: dict[int, list[tuple]] = defaultdict(list)  # (start, end, service_date)
+    for f in p.fixed_work:
+        items[f.employee_id].append((f.start, f.end, f.service_date))
+    week: dict[tuple, int] = defaultdict(int)
+    month: dict[tuple, int] = defaultdict(int)
+    for f in p.fixed_work:
+        mins = int((f.end - f.start).total_seconds() // 60)
+        week[(f.employee_id, iso_week_key(f.service_date))] += mins
+        month[(f.employee_id, f.service_date.year, f.service_date.month)] += mins
+    out: dict[str, int] = {}
+    worked: dict[int, int] = defaultdict(int)
+
+    def fits(e: EmployeeSpec, s: Slot) -> bool:
+        rest = timedelta(hours=e.min_rest_hours)
+        for a0, a1, _ in items[e.id]:
+            if a0 < s.end + rest and s.start < a1 + rest:
+                return False
+        if e.max_hours_week and week[(e.id, iso_week_key(s.service_date))] + s.minutes > e.max_hours_week * 60:
+            return False
+        if e.max_hours_month and month[(e.id, s.service_date.year, s.service_date.month)] + s.minutes > e.max_hours_month * 60:
+            return False
+        if e.max_consecutive_days:
+            days = {d for _, _, d in items[e.id]} | {s.service_date}
+            run, d = 1, s.service_date - timedelta(days=1)
+            while d in days:
+                run, d = run + 1, d - timedelta(days=1)
+            d = s.service_date + timedelta(days=1)
+            while d in days:
+                run, d = run + 1, d + timedelta(days=1)
+            if run > e.max_consecutive_days:
+                return False
+        return True
+
+    def place(e: EmployeeSpec, s: Slot) -> None:
+        out[s.key] = e.id
+        items[e.id].append((s.start, s.end, s.service_date))
+        week[(e.id, iso_week_key(s.service_date))] += s.minutes
+        month[(e.id, s.service_date.year, s.service_date.month)] += s.minutes
+        worked[e.id] += s.minutes
+
+    by_key = {s.key: s for s in p.slots}
+    for k, e in p.locked.items():
+        if k in by_key:
+            place(emps[e], by_key[k])
+    for s in sorted(p.slots, key=order):
+        if s.key in out:
+            continue
+        cands = [e for e in p.employees if elig.get((e.id, s.key)) and fits(e, s)]
+        if not cands:
+            continue
+        prev = p.previous.get(s.key)
+        best = min(cands, key=lambda e: (e.id != prev, e.is_relief, worked[e.id] / max(1.0, e.contract_weekly_hours), e.id))
+        place(best, s)
+    return out
 
 
 def _target_minutes(emp: EmployeeSpec, start: date, end: date) -> int:
@@ -127,6 +214,16 @@ def solve(p: Problem) -> Result:
         m.Add(sum(by_slot[k]) + u[k] == 1)
     for k, e in p.locked.items():
         m.Add(x[(e, k)] == 1)
+    # symmetry breaking: identical positions of one shift are filled in order
+    # (skipped where a position is locked, since that could force infeasibility)
+    shifts: dict[str, list[Slot]] = defaultdict(list)
+    for s in p.slots:
+        shifts[s.shift_key].append(s)
+    for group in shifts.values():
+        if len(group) > 1 and not any(s.key in p.locked for s in group):
+            group.sort(key=lambda s: s.position)
+            for a, b in zip(group, group[1:]):
+                m.Add(u[a.key] <= u[b.key])
 
     fixed_by_emp: dict[int, list[FixedWork]] = defaultdict(list)
     for f in p.fixed_work:
@@ -183,6 +280,11 @@ def solve(p: Problem) -> Result:
                     d += timedelta(days=1)
 
     uncovered_minutes = sum(u[k] * s.minutes for k, s in slots.items())
+    hint = greedy_hint(p, elig)
+    for (e, k), var in x.items():
+        m.AddHint(var, 1 if hint.get(k) == e else 0)
+    for k, var in u.items():
+        m.AddHint(var, 0 if k in hint else 1)
 
     def _solver(limit: float) -> cp_model.CpSolver:
         sv = cp_model.CpSolver()
@@ -193,9 +295,13 @@ def solve(p: Problem) -> Result:
 
     # ---------------- phase 1: coverage
     m.Minimize(uncovered_minutes)
-    sv1 = _solver(p.time_limit_s * 0.4)
-    st1 = sv1.Solve(m)
-    res = Result(status="error", coverage_status=STATUS.get(st1, str(st1)))
+    sv1 = _solver(p.time_limit_s * 0.5)
+    st1 = sv1.Solve(m, _StopAtZero())
+    res = Result(status="error", coverage_status=STATUS.get(st1, str(st1)), hint=hint)
+    if st1 == cp_model.FEASIBLE and sv1.ObjectiveValue() == 0:
+        # 0 uncovered minutes is optimal by definition. CP-SAT presolve rewrites the objective
+        # and can lose that trivial bound, so the search is stopped here and the proof is recorded.
+        res.coverage_status = "OPTIMAL"
     if st1 not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         res.status = "infeasible" if st1 == cp_model.INFEASIBLE else "error"
         res.messages.append(
@@ -205,6 +311,7 @@ def solve(p: Problem) -> Result:
         return res
     best_uncovered = int(sv1.ObjectiveValue())
     m.Add(uncovered_minutes <= best_uncovered)
+    m.ClearHints()
     for var_key, var in x.items():
         m.AddHint(var, sv1.Value(var))
     for k, var in u.items():
@@ -299,7 +406,7 @@ def solve(p: Problem) -> Result:
     sv = sv1
     if terms:
         m.Minimize(sum(terms))
-        sv2 = _solver(p.time_limit_s * 0.6)
+        sv2 = _solver(p.time_limit_s - (_time.monotonic() - t0))  # whatever phase 1 left of the budget
         st2 = sv2.Solve(m)
         if st2 in (cp_model.OPTIMAL, cp_model.FEASIBLE):
             sv = sv2
@@ -383,7 +490,8 @@ def summarise(p: Problem, res: Result, sv1, sv, t0) -> dict:
         "demand_hours": round(demand_min / 60, 2),
         "uncovered_hours": round(unc_min / 60, 2),
         "coverage_pct": round(100 * (demand_min - unc_min) / demand_min, 2) if demand_min else 100.0,
-        "coverage_bound_uncovered_hours": round(sv1.BestObjectiveBound() / 60, 2),
+        "coverage_bound_uncovered_hours": max(0.0, round(sv1.BestObjectiveBound() / 60, 2)),
+        "greedy_hint_uncovered_hours": round(sum(s.minutes for s in p.slots if s.key not in res.hint) / 60, 2),
         "planned_cost_eur": round(sum(d["cost_cents"] for d in per_emp.values()) / 100, 2),
         "per_employee": per_emp,
         "uncovered_hours_by_cause": {k: round(v / 60, 2) for k, v in by_cause.items()},

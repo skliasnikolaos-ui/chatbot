@@ -167,3 +167,45 @@ def test_leave_after_publication_blocks_locked_regeneration(db, demo):
     assert run2.status == "locked_conflict"
     assert run2.version_id is None
     assert run2.report["locked_violations"][0]["code"] == "ABSENCE"
+
+
+def test_published_version_is_immutable_and_attendance_must_match_plan(db, demo):
+    cid = demo["company_id"]
+    run = _generate(db, cid, time_limit_s=8)
+    v = db.get(ScheduleVersion, run.version_id)
+    sch.publish(db, cid, 1, v.id, v.revision, accept_gaps=True)
+    db.refresh(v)
+    a, b = [x for x in sch.assignments_of(db, v.id)][:2]
+    with pytest.raises(sch.ConflictError):
+        sch.assign(db, cid, 1, v.id, a.slot_key, None, v.revision)
+    with pytest.raises(sch.ConflictError):
+        sch.set_lock(db, cid, 1, v.id, a.slot_key, True, v.revision)
+    other = b.employee_id if b.employee_id != a.employee_id else next(
+        e.id for e in db.scalars(select(Employee).where(Employee.company_id == cid)) if e.id != a.employee_id)
+    with pytest.raises(ValueError):
+        att.record_attendance(db, cid, 1, other, a.start_utc, a.end_utc, assignment_id=a.id)
+    # attendance never alters the plan
+    att.record_attendance(db, cid, 1, a.employee_id, a.start_utc + timedelta(hours=1), a.end_utc, assignment_id=a.id)
+    db.refresh(a)
+    assert sch.assignments_of(db, v.id)[0].start_utc == a.start_utc
+
+
+def test_corrections_are_append_only(db, demo):
+    cid = demo["company_id"]
+    e = db.scalar(select(Employee).where(Employee.company_id == cid))
+    from indigo.timeutil import local_to_utc
+    from datetime import time as t
+    r1 = att.record_attendance(db, cid, 1, e.id, local_to_utc(date(2026, 11, 3), t(8)), local_to_utc(date(2026, 11, 3), t(16)))
+    with pytest.raises(ValueError):  # a correction needs a reason
+        att.record_attendance(db, cid, 1, e.id, local_to_utc(date(2026, 11, 3), t(9)), local_to_utc(date(2026, 11, 3), t(16)), supersedes_id=r1.id)
+    r2 = att.record_attendance(db, cid, 1, e.id, local_to_utc(date(2026, 11, 3), t(9)), local_to_utc(date(2026, 11, 3), t(16)),
+                               supersedes_id=r1.id, reason="Λάθος ώρα προσέλευσης")
+    db.refresh(r1)
+    assert r1.status == "superseded" and r2.supersedes_id == r1.id and r1.clock_in.hour == 6  # 08:00 Athens = 06:00 UTC
+    ah = att.approve(db, cid, 1, employee_id=e.id, start=r2.clock_in, end=r2.clock_out, basis="attendance", attendance_id=r2.id)
+    with pytest.raises(ValueError):  # no second overlapping approval without a correction
+        att.approve(db, cid, 1, employee_id=e.id, start=r2.clock_in, end=r2.clock_out, basis="attendance", attendance_id=r2.id)
+    ah2 = att.approve(db, cid, 1, employee_id=e.id, start=r2.clock_in, end=r2.clock_out - timedelta(hours=1), basis="manual",
+                      supersedes_id=ah.id, reason="Αφαίρεση διαλείμματος")
+    db.refresh(ah)
+    assert ah.status == "superseded" and ah2.status == "active"

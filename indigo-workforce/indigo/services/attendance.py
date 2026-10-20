@@ -49,6 +49,8 @@ def record_attendance(db: Session, company_id: int, user_id: int, employee_id: i
     ensure_open(db, company_id, work_date)
     if assignment_id is not None:
         a = get_owned(db, Assignment, assignment_id, company_id)
+        if a.employee_id != employee_id:
+            raise ValueError("Η βάρδια ανήκει σε άλλον εργαζόμενο· καταχωρίστε την ως παρουσία χωρίς προγραμματισμό.")
         site_id = site_id or a.site_id
     old = None
     if supersedes_id is not None:
@@ -89,6 +91,8 @@ def approve(db: Session, company_id: int, user_id: int, *, employee_id: int, sta
         assignment_id = assignment_id or att.assignment_id
     if assignment_id is not None:
         a = get_owned(db, Assignment, assignment_id, company_id)
+        if a.employee_id != employee_id:
+            raise ValueError("Η βάρδια ανήκει σε άλλον εργαζόμενο.")
         site_id = site_id or a.site_id
     if basis == "manual" and not reason:
         raise ValueError("Απαιτείται αιτιολογία για χειροκίνητη έγκριση.")

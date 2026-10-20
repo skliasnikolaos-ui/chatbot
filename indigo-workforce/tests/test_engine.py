@@ -207,3 +207,30 @@ def test_validator_detects_violations_directly():
     assert "OVERLAP" in codes
     codes = {v.code for v in rules.validate([(1, slots[0]), (2, slots[0])], {1: emp(1), 2: emp(2)}, SITES)}
     assert "DOUBLE_BOOKED" in codes
+
+
+def test_greedy_hint_respects_hard_rules():
+    reqs = [req(1, start=time(0), end=time(0), shift_hours=8, headcount=2), req(2, site=2, start=time(18), end=time(2))]
+    emps = [emp(i, max_hours_week=40, max_consecutive_days=5, site_rules={2: "eligible"} if i % 2 else {},
+                absences=[(date(2026, 3, 10), date(2026, 3, 12), "leave")] if i == 3 else []) for i in range(1, 12)]
+    slots = demand.expand(reqs, date(2026, 3, 1), date(2026, 3, 31), set())
+    p = Problem(slots=slots, employees=emps, sites=SITES, period_start=date(2026, 3, 1), period_end=date(2026, 3, 31))
+    elig, _ = solver._eligible_pairs(p)
+    hint = solver.greedy_hint(p, elig)
+    by_key = {s.key: s for s in slots}
+    pairs = [(e, by_key[k]) for k, e in hint.items()]
+    assert pairs and rules.validate(pairs, {e.id: e for e in emps}, SITES) == []
+
+
+def test_full_coverage_reported_as_proven():
+    _, res = run([req(headcount=2)], [emp(i) for i in range(1, 5)], date(2026, 6, 1), date(2026, 6, 7))
+    assert res.status == "complete" and res.coverage_status == "OPTIMAL"
+
+
+def test_symmetry_breaking_does_not_conflict_with_locked_position():
+    # lock position 2 while position 1 cannot be covered by anyone else → must stay feasible (partial)
+    slots = demand.expand([req(headcount=2)], date(2026, 6, 1), date(2026, 6, 1), set())
+    pos2 = [s for s in slots if s.position == 2][0]
+    _, res = run([req(headcount=2)], [emp(1)], date(2026, 6, 1), date(2026, 6, 1), locked={pos2.key: 1})
+    assert res.status == "partial"
+    assert [(e, s.key) for e, s in res.assignments] == [(1, pos2.key)]

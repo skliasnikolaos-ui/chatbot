@@ -1,0 +1,26 @@
+# Pilot deployment: app + PostgreSQL. Put a TLS-terminating reverse proxy in front (INDIGO_COOKIE_SECURE=1 requires HTTPS).
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: indigo
+      POSTGRES_USER: indigo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    restart: unless-stopped
+  app:
+    build: .
+    depends_on: [db]
+    environment:
+      INDIGO_DATABASE_URL: postgresql+psycopg://indigo:${POSTGRES_PASSWORD}@db/indigo
+      INDIGO_SECRET_KEY: ${INDIGO_SECRET_KEY:?set INDIGO_SECRET_KEY}
+      INDIGO_COOKIE_SECURE: "1"
+      INDIGO_ENV: production
+      INDIGO_PRODUCT_NAME: ${INDIGO_PRODUCT_NAME:-INDIGO WORKFORCE}
+      INDIGO_LOG_FILE: /app/var/indigo.log
+    ports: ["127.0.0.1:8000:8000"]
+    volumes: [appvar:/app/var]
+    restart: unless-stopped
+volumes:
+  pgdata: {}
+  appvar: {}
